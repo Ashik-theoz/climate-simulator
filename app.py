@@ -273,9 +273,16 @@ if st.session_state.get("challenge_on", False):
 
     colA, colB = st.columns(2)
     with colA:
-        st.success("🌊 Flood OK") if flood_ok else st.error("🌊 Flood too high")
+        if flood_ok:
+            st.success("🌊 Flood OK")
+        else:
+            st.error("🌊 Flood too high")
+
     with colB:
-        st.success("🌵 Drought OK") if drought_ok else st.error("🌵 Drought too high")
+        if drought_ok:
+            st.success("🌵 Drought OK")
+        else:
+            st.error("🌵 Drought too high")
 
     # Balloons only once per NEW win
     if flood_ok and drought_ok:
