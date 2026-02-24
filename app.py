@@ -9,14 +9,6 @@ import matplotlib.ticker as mtick
 # Page
 # ----------------------------
 st.set_page_config(page_title="Can Engineering Reverse the Climate Clock?", layout="wide")
-
-# Debug banner (OK after page config)
-st.sidebar.success("✅ UPDATED VERSION LOADED")
-try:
-    st.sidebar.caption(f"Running from: {os.path.abspath(__file__)}")
-except Exception:
-    st.sidebar.caption("Running from: (interactive environment)")
-
 # ----------------------------
 # Model
 # ----------------------------
@@ -441,3 +433,12 @@ st.write(
 
 with st.expander("Show data table"):
     st.dataframe(df, use_container_width=True)
+# ----------------------------
+# Footer
+# ----------------------------
+st.markdown("---")
+st.caption(
+    "Developed by Ashikujjaman Mohammad | MSc Environmental Engineering | "
+    "Imperial College London | 2026"
+)    
+    
