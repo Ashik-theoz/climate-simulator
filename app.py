@@ -87,12 +87,130 @@ def pretty_params(p: dict) -> str:
     )
 
 # ----------------------------
-# UI Header
+# Custom theme + hero header
 # ----------------------------
-st.title("Can Engineering Reverse the Climate Clock?")
-st.caption(
-    "Interactive environmental simulation — adjust engineering choices and see future impacts instantly."
-)
+st.markdown("""
+<style>
+/* App-wide cinematic theme */
+.stApp {
+    background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(46, 134, 222, 0.18), transparent 60%),
+        radial-gradient(1000px 500px at 100% 0%, rgba(238, 90, 36, 0.18), transparent 60%),
+        linear-gradient(180deg, #0b1220 0%, #0e1726 60%, #0b1220 100%);
+}
+
+/* Hero */
+.hero-wrap {
+    padding: 24px 28px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(46,134,222,0.18), rgba(238,90,36,0.18));
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+    margin-bottom: 8px;
+    position: relative;
+    overflow: hidden;
+}
+.hero-title {
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    background: linear-gradient(90deg, #7dd3fc 0%, #fbbf24 50%, #f87171 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin: 0;
+}
+.hero-sub {
+    color: #cbd5e1;
+    font-size: 15px;
+    margin-top: 6px;
+    opacity: 0.92;
+}
+.hero-icons {
+    position: absolute;
+    right: 24px;
+    top: 18px;
+    font-size: 36px;
+    opacity: 0.95;
+    letter-spacing: 6px;
+    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4));
+}
+.hero-icons .ic { display:inline-block; animation: float 4s ease-in-out infinite; }
+.hero-icons .ic:nth-child(2){ animation-delay: 0.6s; }
+.hero-icons .ic:nth-child(3){ animation-delay: 1.2s; }
+@keyframes float {
+    0%,100% { transform: translateY(0); }
+    50%     { transform: translateY(-6px); }
+}
+
+/* Custom metric cards */
+.metric-card {
+    border-radius: 14px;
+    padding: 16px 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 6px 22px rgba(0,0,0,0.25);
+}
+.metric-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
+.metric-value { font-size: 32px; font-weight: 800; margin-top: 4px; }
+.metric-trend { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+.severity-low    { color: #34d399; }
+.severity-mod    { color: #fbbf24; }
+.severity-high   { color: #fb923c; }
+.severity-vhigh  { color: #f87171; }
+
+/* Sidebar polish */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0e1726 0%, #0b1220 100%);
+    border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Tab labels */
+.stTabs [data-baseweb="tab-list"] { gap: 8px; }
+.stTabs [data-baseweb="tab"] {
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px 10px 0 0;
+    padding: 8px 16px;
+}
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, rgba(46,134,222,0.25), rgba(238,90,36,0.25));
+}
+
+/* Buttons */
+.stButton button {
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: all 0.2s ease;
+}
+.stButton button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(46,134,222,0.25);
+}
+
+/* AI status chip */
+.ai-chip {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin-left: 8px;
+}
+.ai-chip.online  { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.4); }
+.ai-chip.offline { background: rgba(251, 146, 60, 0.15); color: #fb923c; border: 1px solid rgba(251,146,60,0.4); }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="hero-wrap">
+  <div class="hero-icons"><span class="ic">🌍</span><span class="ic">💧</span><span class="ic">🔥</span></div>
+  <div class="hero-title">Can Engineering Reverse the Climate Clock?</div>
+  <div class="hero-sub">An interactive London-scale climate simulator — pull the engineering levers and watch the future of flood, drought and heat respond in real time.</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ----------------------------
 # Sidebar UI
@@ -255,12 +373,45 @@ if st.session_state.get("challenge_on", False):
         st.session_state["challenge_won"] = False
 
 # ----------------------------
-# Top metrics
+# Top metrics — custom styled cards
 # ----------------------------
-col1, col2, col3 = st.columns(3)
-col1.metric("End-of-horizon warming (proxy °C)", f"{temp_val:.2f}")
-col2.metric("End-of-horizon flood risk (0–100)", f"{flood_val:.0f}")
-col3.metric("End-of-horizon drought risk (0–100)", f"{drought_val:.0f}")
+def severity_class(value, kind="risk"):
+    if kind == "temp":
+        if value < 1.0:  return "severity-low"
+        if value < 2.0:  return "severity-mod"
+        if value < 3.0:  return "severity-high"
+        return "severity-vhigh"
+    if value < 25:  return "severity-low"
+    if value < 50:  return "severity-mod"
+    if value < 75:  return "severity-high"
+    return "severity-vhigh"
+
+mc1, mc2, mc3 = st.columns(3)
+with mc1:
+    st.markdown(f"""
+    <div class="metric-card">
+      <div class="metric-label">🌡️ End-of-horizon warming</div>
+      <div class="metric-value {severity_class(temp_val,'temp')}">{temp_val:.2f} °C</div>
+      <div class="metric-trend">{'Paris-aligned' if temp_val < 2 else 'Above Paris target'}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with mc2:
+    st.markdown(f"""
+    <div class="metric-card">
+      <div class="metric-label">🌊 Flood risk</div>
+      <div class="metric-value {severity_class(flood_val)}">{flood_val:.0f} <span style="font-size:16px;color:#94a3b8;">/ 100</span></div>
+      <div class="metric-trend">{'Low' if flood_val<25 else 'Moderate' if flood_val<50 else 'High' if flood_val<75 else 'Very high'}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with mc3:
+    st.markdown(f"""
+    <div class="metric-card">
+      <div class="metric-label">🌵 Drought risk</div>
+      <div class="metric-value {severity_class(drought_val)}">{drought_val:.0f} <span style="font-size:16px;color:#94a3b8;">/ 100</span></div>
+      <div class="metric-trend">{'Low' if drought_val<25 else 'Moderate' if drought_val<50 else 'High' if drought_val<75 else 'Very high'}</div>
+    </div>
+    """, unsafe_allow_html=True)
+st.write("")  # breathing room
 
 # ----------------------------
 # Tabs: Charts | Map | AI
@@ -427,8 +578,82 @@ with tab_map:
         key="map_risk_view",
     )
 
-    # Build map
-    m = folium.Map(location=[51.5074, -0.1278], zoom_start=11, tiles="cartodbpositron")
+    # Build cinematic dark-mode map
+    m = folium.Map(
+        location=[51.5074, -0.1278],
+        zoom_start=11,
+        tiles="cartodbdark_matter",
+        control_scale=True,
+    )
+
+    # Inject CSS into the map iframe for animated markers
+    map_css = """
+    <style>
+    .climate-marker {
+        font-size: 28px;
+        text-align: center;
+        line-height: 1;
+        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+        transform: translate(-50%, -50%);
+        position: relative;
+        cursor: pointer;
+    }
+    .climate-marker .ring {
+        position: absolute;
+        left: 50%; top: 50%;
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+    }
+    .pulse-flood .ring {
+        background: rgba(56, 189, 248, 0.35);
+        box-shadow: 0 0 0 0 rgba(56,189,248,0.7);
+        animation: pulse-flood 1.8s infinite cubic-bezier(0.4,0,0.6,1);
+    }
+    .pulse-drought .ring {
+        background: rgba(251, 146, 60, 0.35);
+        box-shadow: 0 0 0 0 rgba(251,146,60,0.7);
+        animation: pulse-drought 1.8s infinite cubic-bezier(0.4,0,0.6,1);
+    }
+    .pulse-extreme .ring {
+        background: rgba(248, 113, 113, 0.4);
+        box-shadow: 0 0 0 0 rgba(248,113,113,0.8);
+        animation: pulse-extreme 1.4s infinite cubic-bezier(0.4,0,0.6,1);
+    }
+    @keyframes pulse-flood {
+      0%   { box-shadow: 0 0 0 0    rgba(56,189,248,0.55); }
+      70%  { box-shadow: 0 0 0 28px rgba(56,189,248,0);    }
+      100% { box-shadow: 0 0 0 0    rgba(56,189,248,0);    }
+    }
+    @keyframes pulse-drought {
+      0%   { box-shadow: 0 0 0 0    rgba(251,146,60,0.55); }
+      70%  { box-shadow: 0 0 0 28px rgba(251,146,60,0);    }
+      100% { box-shadow: 0 0 0 0    rgba(251,146,60,0);    }
+    }
+    @keyframes pulse-extreme {
+      0%   { box-shadow: 0 0 0 0    rgba(248,113,113,0.65); }
+      70%  { box-shadow: 0 0 0 32px rgba(248,113,113,0);    }
+      100% { box-shadow: 0 0 0 0    rgba(248,113,113,0);    }
+    }
+    .climate-legend {
+        position: fixed; bottom: 24px; left: 24px; z-index:9999;
+        background: rgba(15,23,42,0.92); color: #e2e8f0;
+        padding: 10px 14px; border-radius: 10px; font-size: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.08);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .climate-legend b { color: #f8fafc; }
+    .leaflet-popup-content-wrapper {
+        background: rgba(15,23,42,0.96); color: #e2e8f0;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    .leaflet-popup-tip { background: rgba(15,23,42,0.96); }
+    </style>
+    """
+    m.get_root().html.add_child(folium.Element(map_css))
 
     heat_points = []
     for loc in LONDON_LOCATIONS:
@@ -441,53 +666,78 @@ with tab_map:
         )
         if risk_view == "Flood risk":
             shown = f_local
+            kind = "flood"
         elif risk_view == "Drought risk":
             shown = d_local
+            kind = "drought"
         else:
             shown = (f_local + d_local) / 2
+            # whichever is dominant decides the icon flavour
+            kind = "flood" if f_local >= d_local else "drought"
 
-        color = risk_color(shown)
-        radius = 8 + (shown / 100.0) * 14  # 8..22 px
+        # Choose emoji + animation
+        if kind == "flood":
+            emoji = "💧" if shown < 50 else "🌊"
+            pulse_class = "pulse-flood" if shown >= 45 else ""
+        else:
+            emoji = "🌵" if shown < 50 else "🔥"
+            pulse_class = "pulse-drought" if shown >= 45 else ""
+        if shown >= 75:
+            pulse_class = "pulse-extreme"
+            emoji = "⚠️"
 
-        popup_html = (
-            f"<b>{loc['name']}</b><br>"
-            f"Flood risk: <b>{f_local:.0f}</b> / 100<br>"
-            f"Drought risk: <b>{d_local:.0f}</b> / 100<br>"
-            f"<i>River exposure: {int(loc['river']*100)}%, "
-            f"green: {int(loc['green']*100)}%, "
-            f"urban: {int(loc['urban']*100)}%</i>"
-        )
+        size = int(28 + (shown / 100.0) * 22)  # 28..50 px
 
-        folium.CircleMarker(
+        marker_html = f"""
+        <div class="climate-marker {pulse_class}" style="font-size:{size}px;">
+            <div class="ring"></div>
+            <span style="position:relative; z-index:2;">{emoji}</span>
+        </div>
+        """
+
+        popup_html = f"""
+        <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; min-width:220px;">
+          <div style="font-weight:700; font-size:14px; margin-bottom:6px;">{loc['name']}</div>
+          <div style="display:flex; justify-content:space-between; padding:4px 0; border-top:1px solid rgba(255,255,255,0.1);">
+            <span>🌊 Flood risk</span><b style="color:#7dd3fc;">{f_local:.0f}/100</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:4px 0; border-top:1px solid rgba(255,255,255,0.1);">
+            <span>🌵 Drought risk</span><b style="color:#fbbf24;">{d_local:.0f}/100</b>
+          </div>
+          <div style="margin-top:8px; font-size:11px; color:#94a3b8;">
+            River exposure {int(loc['river']*100)}% · green {int(loc['green']*100)}% · urban {int(loc['urban']*100)}%
+          </div>
+        </div>
+        """
+
+        folium.Marker(
             location=[loc["lat"], loc["lon"]],
-            radius=radius,
-            color=color,
-            fill=True,
-            fill_color=color,
-            fill_opacity=0.75,
-            weight=2,
+            icon=folium.DivIcon(
+                html=marker_html,
+                icon_size=(size, size),
+                icon_anchor=(size // 2, size // 2),
+            ),
             popup=folium.Popup(popup_html, max_width=280),
-            tooltip=f"{loc['name']} — {risk_view}: {shown:.0f}",
+            tooltip=f"{loc['name']} — {risk_view}: {shown:.0f}/100",
         ).add_to(m)
 
         heat_points.append([loc["lat"], loc["lon"], shown / 100.0])
 
-    # Optional heat layer
-    HeatMap(heat_points, radius=35, blur=25, min_opacity=0.25).add_to(
-        folium.FeatureGroup(name="Heat layer", show=False).add_to(m)
+    # Heat halo layer (off by default — visitors can toggle)
+    HeatMap(heat_points, radius=42, blur=32, min_opacity=0.3).add_to(
+        folium.FeatureGroup(name="🔥 Heat halo", show=False).add_to(m)
     )
-    folium.LayerControl().add_to(m)
+    folium.LayerControl(collapsed=True).add_to(m)
 
-    # Legend
+    # Cinematic legend
     legend_html = """
-    <div style="position: fixed; bottom: 30px; left: 30px; z-index:9999;
-                background: rgba(255,255,255,0.92); padding: 8px 12px;
-                border-radius: 6px; font-size: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
-      <b>Risk legend</b><br>
-      <span style="color:#2ecc71;">●</span> 0–25 low&nbsp;
-      <span style="color:#f1c40f;">●</span> 25–50 moderate<br>
-      <span style="color:#e67e22;">●</span> 50–75 high&nbsp;
-      <span style="color:#e74c3c;">●</span> 75–100 very high
+    <div class="climate-legend">
+      <b>🌍 Climate-risk legend</b><br>
+      <span style="font-size:14px;">💧</span> mild &nbsp;
+      <span style="font-size:14px;">🌊</span> high flood<br>
+      <span style="font-size:14px;">🌵</span> mild &nbsp;
+      <span style="font-size:14px;">🔥</span> high drought<br>
+      <span style="font-size:14px;">⚠️</span> very high risk (pulses)
     </div>
     """
     m.get_root().html.add_child(folium.Element(legend_html))
@@ -695,38 +945,62 @@ def offline_answer(question, temp, flood, drought, params):
     )
 
 
-def ask_anthropic(messages, system_prompt):
-    """Call Anthropic API. Returns string or raises."""
+def get_anthropic_key():
+    """Resolve API key: sidebar/env first, then Streamlit secrets."""
+    k = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if k:
+        return k
+    try:
+        return (st.secrets.get("ANTHROPIC_API_KEY", "") or "").strip()
+    except Exception:
+        return ""
+
+
+def ask_anthropic_stream(messages, system_prompt, placeholder):
+    """Stream the response token-by-token into a Streamlit placeholder."""
     try:
         from anthropic import Anthropic
     except ImportError:
-        raise RuntimeError("The `anthropic` package is not installed. Run: pip install anthropic")
+        raise RuntimeError("The `anthropic` package is not installed.")
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    api_key = get_anthropic_key()
     if not api_key:
         raise RuntimeError("No Anthropic API key set.")
 
     client = Anthropic(api_key=api_key)
-    resp = client.messages.create(
+    text_so_far = ""
+    with client.messages.stream(
         model="claude-haiku-4-5-20251001",
         max_tokens=600,
         system=system_prompt,
         messages=messages,
-    )
-    # Concatenate text blocks
-    parts = []
-    for block in resp.content:
-        if getattr(block, "type", None) == "text":
-            parts.append(block.text)
-    return "".join(parts).strip()
+    ) as stream:
+        for chunk in stream.text_stream:
+            text_so_far += chunk
+            placeholder.markdown(text_so_far + " ▌")
+    placeholder.markdown(text_so_far)
+    return text_so_far
 
 
 with tab_ai:
-    st.subheader("🤖 Ask the climate engineer")
-    st.caption(
-        "Ask anything about your current scenario. Works offline with a built-in explainer; "
-        "if you've added an Anthropic API key in the sidebar, you'll get a richer chat."
-    )
+    online_now = bool(get_anthropic_key())
+    chip = ('<span class="ai-chip online">● ONLINE · Claude Haiku 4.5</span>'
+            if online_now else
+            '<span class="ai-chip offline">● OFFLINE · built-in brain</span>')
+    st.markdown(f"### 🤖 Ask the climate engineer {chip}", unsafe_allow_html=True)
+    if online_now:
+        st.caption("Live AI answers, streamed token-by-token, grounded in your current sliders.")
+    else:
+        st.caption("Running on the built-in explainer. Paste an Anthropic API key in the sidebar for streaming live AI answers.")
+        with st.expander("🔑 How to get a free API key (≈30 seconds)"):
+            st.markdown(
+                "1. Go to **https://console.anthropic.com/** and sign in.\n"
+                "2. Click **Get API keys** → **Create Key**. Anthropic gives free credits at signup, plenty for a festival booth.\n"
+                "3. Copy the key (starts with `sk-ant-...`).\n"
+                "4. Paste it in the **🤖 AI assistant** field in the sidebar.\n\n"
+                "For a permanent setup on Streamlit Cloud, go to *Manage app → Settings → Secrets* and add: \n"
+                "`ANTHROPIC_API_KEY = \"sk-ant-...\"` — then the key works for everyone visiting your booth."
+            )
 
     current_params = {
         "years": int(st.session_state["years"]),
@@ -777,28 +1051,25 @@ with tab_ai:
 
         with st.chat_message("assistant"):
             placeholder = st.empty()
-            placeholder.markdown("_Thinking..._")
+            placeholder.markdown("_🌍 Thinking..._")
             try:
-                # Prefer Anthropic API if key present
-                api_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
-                if api_key_set:
-                    answer = ask_anthropic(
+                if get_anthropic_key():
+                    answer = ask_anthropic_stream(
                         messages=[{"role": m["role"], "content": m["content"]}
                                   for m in st.session_state["chat_history"]],
                         system_prompt=system_prompt,
+                        placeholder=placeholder,
                     )
                 else:
                     raise RuntimeError("no_api_key")
             except Exception as e:
-                # graceful fallback — use the smart Q&A on the actual question
+                # Graceful fallback — smart Q&A grounded in the user's actual question
                 smart = offline_answer(user_q, temp_val, flood_val, drought_val, current_params)
                 if str(e) == "no_api_key":
-                    answer = "_(Offline mode — answering from the simulator's built-in knowledge.)_\n\n" + smart
+                    answer = smart  # offline brain — chip already tells the user
                 else:
-                    answer = (
-                        f"_(AI service unavailable: {e}. Falling back to built-in answer.)_\n\n" + smart
-                    )
-            placeholder.markdown(answer)
+                    answer = f"_(Live AI hiccup: {e}. Using built-in answer.)_\n\n" + smart
+                placeholder.markdown(answer)
             st.session_state["chat_history"].append({"role": "assistant", "content": answer})
 
     cclear1, cclear2 = st.columns([1, 6])
