@@ -492,7 +492,16 @@ with tab_map:
     """
     m.get_root().html.add_child(folium.Element(legend_html))
 
-    st_folium(m, width=None, height=520, returned_objects=[])
+    # Dynamic key forces the iframe to remount whenever inputs change,
+    # otherwise st_folium caches the previous map and the radio button looks broken.
+    map_key = (
+        f"map_{risk_view}"
+        f"_{int(flood_val)}_{int(drought_val)}"
+        f"_{st.session_state['green_infra_pct']}"
+        f"_{st.session_state['urbanization_pct']}"
+        f"_{st.session_state['co2_ppm']}"
+    )
+    st_folium(m, width=None, height=520, returned_objects=[], key=map_key)
 
     st.caption(
         "Note: location risk profiles are illustrative for the festival demo, not an official hazard map."
@@ -544,6 +553,146 @@ def offline_explainer(temp, flood, drought, params):
         + "**What you could try next:**\n- " + "\n- ".join(levers)
     )
     return summary
+
+
+def offline_answer(question, temp, flood, drought, params):
+    """
+    Smarter rule-based Q&A for when no Anthropic API key is set.
+    Detects the user's intent (where / why / how / what does X mean) and
+    answers using the simulator state and the London location data.
+    """
+    q = (question or "").lower().strip()
+    if not q:
+        return offline_explainer(temp, flood, drought, params)
+
+    asks_where   = any(w in q for w in ["where", "which area", "which location", "which place",
+                                         "which neighbourhood", "which neighborhood",
+                                         "what area", "what part", "highest", "worst", "most"])
+    asks_flood   = "flood" in q
+    asks_drought = "drought" in q
+    asks_why     = any(w in q for w in ["why", "reason", "cause", "because"])
+    asks_reduce  = any(w in q for w in ["reduce", "lower", "decrease", "fix", "improve",
+                                         "how to", "how can", "how do", "what should", "solve"])
+    asks_explain = any(w in q for w in ["explain", "what does", "what is", "what's", "tell me about",
+                                         "meaning", "mean by"])
+
+    # Compute per-location risks for any "where"-style answers
+    local_data = []
+    for loc in LONDON_LOCATIONS:
+        f_local, d_local = local_risks(
+            loc, flood, drought,
+            params["green_infra_pct"], params["urbanization_pct"],
+        )
+        local_data.append({"name": loc["name"], "flood": f_local, "drought": d_local})
+
+    # ---- "Where / which area is risk highest?" ----
+    if asks_where and (asks_flood or asks_drought or "risk" in q):
+        if asks_flood and not asks_drought:
+            top = sorted(local_data, key=lambda x: -x["flood"])[:3]
+            lines = ["**Areas with the highest flood risk in your scenario:**"]
+            for i, item in enumerate(top, 1):
+                lines.append(f"{i}. {item['name']} — {item['flood']:.0f} / 100")
+            lines.append("")
+            lines.append("Riverside zones (Westminster, Canary Wharf, Greenwich) and dense urban areas with little green cover get the worst flood scores. Try sliding **green infrastructure** up to see how much it helps.")
+            return "\n".join(lines)
+        if asks_drought and not asks_flood:
+            top = sorted(local_data, key=lambda x: -x["drought"])[:3]
+            lines = ["**Areas with the highest drought risk in your scenario:**"]
+            for i, item in enumerate(top, 1):
+                lines.append(f"{i}. {item['name']} — {item['drought']:.0f} / 100")
+            lines.append("")
+            lines.append("Drought hits dense, low-green areas hardest. Adding parks, green roofs and street trees would help most here.")
+            return "\n".join(lines)
+        # Combined
+        top = sorted(local_data, key=lambda x: -((x["flood"] + x["drought"]) / 2))[:3]
+        lines = ["**Areas with the highest combined climate risk:**"]
+        for i, item in enumerate(top, 1):
+            lines.append(f"{i}. {item['name']} — flood {item['flood']:.0f}, drought {item['drought']:.0f}")
+        return "\n".join(lines)
+
+    # ---- "Why is X risk so high?" ----
+    if asks_why and asks_flood:
+        reasons = []
+        if params["urbanization_pct"] > 50:
+            reasons.append(f"high urbanization ({params['urbanization_pct']}%) — concrete and roads stop water soaking into the ground, so it runs off as flood water")
+        if params["green_infra_pct"] < 30:
+            reasons.append(f"low green infrastructure ({params['green_infra_pct']}%) — not enough parks / SuDS to absorb runoff")
+        if params["rainfall_change_pct"] > 5:
+            reasons.append(f"rainfall is up by {params['rainfall_change_pct']}% — more water falling overall")
+        if params["co2_ppm"] > 450:
+            reasons.append(f"CO₂ at {params['co2_ppm']} ppm drives warming, which intensifies extreme rain events")
+        if not reasons:
+            return f"Flood risk is **{flood:.0f}/100** — fairly contained for your settings. The main drivers in this model are rainfall, impervious surfaces and warming."
+        return f"Flood risk is **{flood:.0f}/100**. Main drivers in your scenario:\n\n- " + "\n- ".join(reasons)
+
+    if asks_why and asks_drought:
+        reasons = []
+        if params["co2_ppm"] > 450:
+            reasons.append(f"CO₂ at {params['co2_ppm']} ppm drives warming, which boosts evaporation and dries soils")
+        if params["rainfall_change_pct"] < 0:
+            reasons.append(f"rainfall is down by {abs(params['rainfall_change_pct'])}% — less water available")
+        if params["green_infra_pct"] < 30:
+            reasons.append(f"low green infrastructure ({params['green_infra_pct']}%) — soils dry out faster without vegetation")
+        if params["urbanization_pct"] > 50:
+            reasons.append(f"heavy urbanization ({params['urbanization_pct']}%) creates urban heat islands that worsen drought stress")
+        if not reasons:
+            return f"Drought risk is **{drought:.0f}/100** — under control for your settings."
+        return f"Drought risk is **{drought:.0f}/100**. Main drivers in your scenario:\n\n- " + "\n- ".join(reasons)
+
+    # ---- "How do I reduce X?" ----
+    if asks_reduce:
+        if asks_flood and not asks_drought:
+            return (
+                f"To lower flood risk (currently **{flood:.0f}/100**):\n\n"
+                f"- Push **green infrastructure** up — it's the most effective lever (try 60–80%).\n"
+                f"- Reduce **urbanization / imperviousness** — replace concrete with permeable surfaces.\n"
+                f"- Lower **CO₂** — less warming means less intense rainfall.\n"
+                f"- These also indirectly reduce drought."
+            )
+        if asks_drought and not asks_flood:
+            return (
+                f"To lower drought risk (currently **{drought:.0f}/100**):\n\n"
+                f"- Lower **CO₂** — slower warming means less evaporation.\n"
+                f"- Add **green infrastructure** — soils retain moisture and shade reduces heat stress.\n"
+                f"- Reduce dense urbanization to weaken the urban heat island."
+            )
+        return (
+            "**Three strongest levers to reduce climate risk:**\n\n"
+            f"1. Lower CO₂ (you're at {params['co2_ppm']} ppm — try 350–400).\n"
+            f"2. Boost green infrastructure (you're at {params['green_infra_pct']}% — try 60+).\n"
+            f"3. Reduce urbanization (you're at {params['urbanization_pct']}% — try 30–40)."
+        )
+
+    # ---- "What does X mean?" ----
+    if asks_explain:
+        if "co2" in q or "co₂" in q or "carbon" in q:
+            return (f"**CO₂ concentration** is how much carbon dioxide is in the atmosphere, in parts per million. "
+                    f"Pre-industrial = 280 ppm, today ≈ 425 ppm. You've set it to **{params['co2_ppm']} ppm**. "
+                    "Higher CO₂ means more warming, which amplifies floods and droughts.")
+        if "green" in q or "infrastructure" in q or "suds" in q:
+            return (f"**Green infrastructure** = parks, green roofs, street trees, sustainable drainage (SuDS), permeable pavements. "
+                    "It absorbs rainfall, cools the city, and reduces flood and drought risk. "
+                    f"You've set it to **{params['green_infra_pct']}%**.")
+        if "urban" in q or "impervious" in q:
+            return (f"**Urbanization / imperviousness** = how much of the city is covered by buildings, roads and concrete that water can't soak into. "
+                    f"You're at **{params['urbanization_pct']}%**. Higher = worse flooding and worse drought.")
+        if "flood" in q:
+            return f"**Flood risk** is a 0–100 score for how likely flooding becomes given your CO₂, rainfall, urbanization and green-infrastructure settings. You're at **{flood:.0f}/100**."
+        if "drought" in q:
+            return f"**Drought risk** is a 0–100 score for how vulnerable your scenario is to water shortage. You're at **{drought:.0f}/100**."
+        if "warming" in q or "temperature" in q or "heat" in q:
+            return f"**Warming (proxy °C)** is the projected temperature rise above pre-industrial levels by the end of your simulation horizon. You're at **{temp:.2f} °C**. The Paris Agreement target is well below 2 °C."
+
+    # Default: full summary + tip
+    summary = offline_explainer(temp, flood, drought, params)
+    return (
+        summary
+        + "\n\n_Tip: try asking things like_ "
+        "*\"which area has the highest flood risk?\"*, "
+        "*\"why is drought so high?\"*, "
+        "*\"how do I reduce flood risk?\"*, or "
+        "*\"what does CO₂ mean?\"*."
+    )
 
 
 def ask_anthropic(messages, system_prompt):
@@ -641,17 +790,13 @@ with tab_ai:
                 else:
                     raise RuntimeError("no_api_key")
             except Exception as e:
-                # graceful fallback
-                fallback = offline_explainer(temp_val, flood_val, drought_val, current_params)
+                # graceful fallback — use the smart Q&A on the actual question
+                smart = offline_answer(user_q, temp_val, flood_val, drought_val, current_params)
                 if str(e) == "no_api_key":
-                    answer = (
-                        "_(No API key set — using built-in explainer.)_\n\n"
-                        + fallback
-                    )
+                    answer = "_(Offline mode — answering from the simulator's built-in knowledge.)_\n\n" + smart
                 else:
                     answer = (
-                        f"_(AI service unavailable: {e}. Falling back to built-in explainer.)_\n\n"
-                        + fallback
+                        f"_(AI service unavailable: {e}. Falling back to built-in answer.)_\n\n" + smart
                     )
             placeholder.markdown(answer)
             st.session_state["chat_history"].append({"role": "assistant", "content": answer})
