@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
+import plotly.graph_objects as go
 
 from simulator import (
     simulate, monte_carlo, sensitivity_analysis, local_risk,
@@ -53,7 +54,53 @@ st.markdown("""
     background: linear-gradient(90deg, #7dd3fc 0%, #fbbf24 50%, #f87171 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent; margin: 0;
 }
-.hero-sub { color: #cbd5e1; font-size: 15px; margin-top: 6px; opacity: 0.92; }
+.hero-sub { color: #cbd5e1; font-size: 15px; margin-top: 14px; opacity: 0.92; }
+.hero-welcome {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 999px;
+    padding: 4px 12px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    animation: badgeIn 0.6s cubic-bezier(0.2,0.8,0.2,1) both, badgeGlow 3s ease-in-out infinite 1s;
+}
+@keyframes badgeIn  { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes badgeGlow {
+    0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.0); }
+    50%     { box-shadow: 0 0 18px 2px rgba(251,191,36,0.35); }
+}
+
+.hero-tagline {
+    margin-top: 12px;
+    color: #e2e8f0;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+.hero-tagline .tag-step {
+    display: inline-block;
+    opacity: 0;
+    animation: tagReveal 0.5s cubic-bezier(0.2,0.8,0.2,1) both;
+}
+.hero-tagline .tag-step:nth-of-type(1) { animation-delay: 0.55s; color: #7dd3fc; }
+.hero-tagline .tag-step:nth-of-type(2) { animation-delay: 0.85s; color: #fbbf24; }
+.hero-tagline .tag-step:nth-of-type(3) { animation-delay: 1.15s; color: #f87171; font-weight: 700; }
+.hero-tagline .tag-dot {
+    color: rgba(255,255,255,0.3);
+    margin: 0 10px;
+    opacity: 0;
+    animation: tagReveal 0.5s ease 0.7s both;
+}
+.hero-tagline .tag-dot:nth-of-type(2) { animation-delay: 1.0s; }
+@keyframes tagReveal {
+    from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+    to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
 .hero-icons { position: absolute; right: 24px; top: 18px; font-size: 36px;
     opacity: 0.95; letter-spacing: 6px; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4));
 }
@@ -97,14 +144,124 @@ section[data-testid="stSidebar"] {
 .eq { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px 14px;
     border: 1px solid rgba(255,255,255,0.08); font-family: 'JetBrains Mono', 'Menlo', monospace;
     font-size: 14px; color: #e2e8f0; margin: 8px 0; }
+
+/* === Entrance animations === */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-24px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+.hero-wrap        { animation: fadeInUp 0.7s cubic-bezier(0.2,0.8,0.2,1); }
+.metric-card      { animation: fadeInUp 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.15s both; }
+.metric-card:nth-of-type(2) { animation-delay: 0.25s; }
+.metric-card:nth-of-type(3) { animation-delay: 0.35s; }
+.stTabs           { animation: fadeIn 0.9s ease 0.45s both; }
+section[data-testid="stSidebar"] > div { animation: slideInLeft 0.6s cubic-bezier(0.2,0.8,0.2,1); }
+
+/* Subtle shimmer across the hero title — reads "alive" */
+.hero-title {
+    background: linear-gradient(90deg, #7dd3fc 0%, #fbbf24 25%, #f87171 50%, #fbbf24 75%, #7dd3fc 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 8s linear infinite;
+}
+
+/* === Sidebar polish === */
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+    background: linear-gradient(90deg, #7dd3fc, #fbbf24);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+/* Slider track + thumb */
+section[data-testid="stSidebar"] [data-baseweb="slider"] [role="slider"] {
+    box-shadow: 0 0 0 4px rgba(125,211,252,0.18), 0 0 12px rgba(125,211,252,0.5);
+    transition: all 0.18s ease;
+}
+section[data-testid="stSidebar"] [data-baseweb="slider"] [role="slider"]:hover {
+    box-shadow: 0 0 0 6px rgba(125,211,252,0.28), 0 0 18px rgba(125,211,252,0.7);
+    transform: scale(1.08);
+}
+
+/* Sidebar button hover lift */
+section[data-testid="stSidebar"] .stButton button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 26px rgba(46,134,222,0.3);
+    border-color: rgba(125,211,252,0.4);
+}
+
+/* Scenario library + AI assistant panels look like cards */
+section[data-testid="stSidebar"] .stSelectbox,
+section[data-testid="stSidebar"] .stTextInput,
+section[data-testid="stSidebar"] .stRadio,
+section[data-testid="stSidebar"] .stToggle {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+}
+
+/* === Tab content fade on switch === */
+.stTabs [role="tabpanel"] { animation: fadeIn 0.5s ease; }
+
+/* === Ambient mood layer (set by python below via a div) === */
+.mood-layer {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    transition: opacity 1.2s ease, background 1.2s ease;
+}
+.mood-flood {
+    background: radial-gradient(800px 600px at 70% 30%, rgba(56,189,248,0.10), transparent 70%);
+}
+.mood-drought {
+    background: radial-gradient(800px 600px at 30% 70%, rgba(251,146,60,0.12), transparent 70%);
+}
+.mood-extreme {
+    background: radial-gradient(900px 700px at 50% 50%, rgba(248,113,113,0.16), transparent 70%);
+    animation: extremePulse 3s ease-in-out infinite;
+}
+@keyframes extremePulse {
+    0%,100% { opacity: 0.85; } 50% { opacity: 1; }
+}
+
+/* Plotly background transparency so charts blend with our theme */
+.js-plotly-plot, .plot-container { background: transparent !important; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
 <div class="hero-wrap">
   <div class="hero-icons"><span class="ic">🌍</span><span class="ic">💧</span><span class="ic">🔥</span></div>
+  <div class="hero-welcome">⚡ WELCOME TO THE CLIMATE ENGINEERING LAB</div>
   <div class="hero-title">Can Engineering Reverse the Climate Clock?</div>
-  <div class="hero-sub">An interactive London-scale climate simulator — pull the engineering levers and watch the future of flood, drought and heat respond in real time.</div>
+  <div class="hero-tagline">
+    <span class="tag-step">Pull the levers</span>
+    <span class="tag-dot">·</span>
+    <span class="tag-step">Watch London respond</span>
+    <span class="tag-dot">·</span>
+    <span class="tag-step">Reverse the clock</span>
+  </div>
+  <div class="hero-sub">An interactive London-scale climate simulator — your engineering choices shape the future of flood, drought and heat in real time.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -313,6 +470,15 @@ def severity_class(value, kind="risk"):
     if value < 75: return "severity-high"
     return "severity-vhigh"
 
+# Ambient "mood" layer — tints the page based on dominant risk
+if max(flood_val, drought_val) >= 75:
+    mood_class = "mood-extreme"
+elif flood_val >= drought_val:
+    mood_class = "mood-flood"
+else:
+    mood_class = "mood-drought"
+st.markdown(f'<div class="mood-layer {mood_class}"></div>', unsafe_allow_html=True)
+
 mc1, mc2, mc3 = st.columns(3)
 with mc1:
     st.markdown(f"""
@@ -349,64 +515,137 @@ tab_charts, tab_map, tab_sens, tab_ai, tab_methods, tab_export = st.tabs(
 # TAB 1 — Charts (uncertainty + SSP + history)
 # ----------------------------------------------------------------------------
 with tab_charts:
+    # Plotly base layout — matches our dark theme
+    def _plotly_layout(title, ylabel, height=420):
+        return dict(
+            title=dict(text=title, font=dict(size=15, color="#e2e8f0")),
+            template="plotly_dark",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="-apple-system, BlinkMacSystemFont, Inter, sans-serif",
+                      color="#cbd5e1", size=12),
+            xaxis=dict(title="Year", gridcolor="rgba(255,255,255,0.07)",
+                       zerolinecolor="rgba(255,255,255,0.12)", showspikes=True,
+                       spikemode="across", spikecolor="rgba(125,211,252,0.4)", spikethickness=1),
+            yaxis=dict(title=ylabel, gridcolor="rgba(255,255,255,0.07)",
+                       zerolinecolor="rgba(255,255,255,0.12)"),
+            hovermode="x unified",
+            hoverlabel=dict(bgcolor="rgba(15,23,42,0.95)",
+                            bordercolor="rgba(125,211,252,0.4)",
+                            font=dict(color="#e2e8f0", size=12)),
+            legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="rgba(255,255,255,0.08)",
+                        borderwidth=1, font=dict(size=11)),
+            margin=dict(t=50, b=40, l=10, r=10),
+            height=height,
+            transition=dict(duration=400, easing="cubic-in-out"),
+        )
+
     L, R = st.columns([1, 1])
 
+    # ---------------- Temperature ----------------
     with L:
-        st.subheader("Temperature trajectory")
-        fig = plt.figure(figsize=(7.0, 4.4))
-        ax = fig.add_subplot(111)
+        st.subheader("🌡️ Temperature trajectory")
+        fig_t = go.Figure()
 
-        # Historical splice
+        # Historical splice (HadCRUT5)
         if st.session_state["show_history"]:
-            hist_yr = [y for y, _ in HADCRUT_HISTORICAL]
-            hist_t  = [t for _, t in HADCRUT_HISTORICAL]
-            ax.plot(hist_yr, hist_t, color="#888", linewidth=1.6, label="HadCRUT5 (1850-2023)")
+            fig_t.add_trace(go.Scatter(
+                x=[y for y, _ in HADCRUT_HISTORICAL],
+                y=[t for _, t in HADCRUT_HISTORICAL],
+                mode="lines+markers", name="HadCRUT5 (1850–2023)",
+                line=dict(color="#94a3b8", width=1.6, shape="spline"),
+                marker=dict(size=4, color="#94a3b8"),
+                hovertemplate="<b>%{x}</b>: %{y:.2f} °C<extra>HadCRUT5</extra>",
+            ))
 
-        # Uncertainty band
+        # Uncertainty band — drawn first so it sits behind the line
         if mc is not None:
-            ax.fill_between(mc["year"], mc["temp_p05"], mc["temp_p95"],
-                            color=WONG_PALETTE["blue"], alpha=0.18, label="5–95% Monte Carlo")
+            fig_t.add_trace(go.Scatter(
+                x=mc["year"], y=mc["temp_p95"],
+                mode="lines", line=dict(width=0, color="rgba(0,114,178,0)"),
+                showlegend=False, hoverinfo="skip", name="p95",
+            ))
+            fig_t.add_trace(go.Scatter(
+                x=mc["year"], y=mc["temp_p05"],
+                mode="lines", line=dict(width=0, color="rgba(0,114,178,0)"),
+                fill="tonexty", fillcolor="rgba(0,114,178,0.18)",
+                name="5–95% Monte Carlo",
+                hovertemplate="<b>%{x}</b>: 5–95% band<extra></extra>",
+            ))
 
-        ax.plot(df["year"], df["temp_anomaly_C"], color=WONG_PALETTE["blue"],
-                linewidth=2.2, label="Your scenario")
+        # Main scenario line
+        fig_t.add_trace(go.Scatter(
+            x=df["year"], y=df["temp_anomaly_C"],
+            mode="lines", name="Your scenario",
+            line=dict(color="#7dd3fc", width=3, shape="spline"),
+            hovertemplate="<b>%{x}</b>: <b>%{y:.2f} °C</b><extra>Your scenario</extra>",
+        ))
 
         # SSP reference horizontal lines at 2100
         if st.session_state["show_ssp"]:
             for name, info in SSP_SCENARIOS.items():
-                ax.axhline(info["warming_2100"], linestyle=":", linewidth=1,
-                           color=info["color"], alpha=0.85)
-                ax.text(df["year"].iloc[-1] + 0.5, info["warming_2100"],
-                        name, va="center", fontsize=8, color=info["color"])
+                fig_t.add_hline(
+                    y=info["warming_2100"],
+                    line=dict(color=info["color"], width=1, dash="dot"),
+                    annotation=dict(text=name, font=dict(size=9, color=info["color"]),
+                                    bgcolor="rgba(15,23,42,0.6)", borderpad=2),
+                    annotation_position="right",
+                )
 
-        ax.set_xlabel("Year"); ax.set_ylabel("Anomaly above pre-industrial (°C)")
-        ax.set_title("Projected warming")
-        ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
-        ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
-        ax.legend(frameon=False, loc="upper left", fontsize=8)
-        fig.tight_layout()
-        st.pyplot(fig, clear_figure=True)
+        fig_t.update_layout(**_plotly_layout("Projected warming above pre-industrial", "°C"))
+        st.plotly_chart(fig_t, use_container_width=True,
+                        config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
 
+    # ---------------- Risks ----------------
     with R:
-        st.subheader("Flood & drought risk")
-        fig = plt.figure(figsize=(7.0, 4.4))
-        ax = fig.add_subplot(111)
+        st.subheader("🌊 Flood & drought risk")
+        fig_r = go.Figure()
+
         if mc is not None:
-            ax.fill_between(mc["year"], mc["flood_p05"], mc["flood_p95"],
-                            color=WONG_PALETTE["skyblue"], alpha=0.18)
-            ax.fill_between(mc["year"], mc["drought_p05"], mc["drought_p95"],
-                            color=WONG_PALETTE["orange"], alpha=0.18)
-        ax.plot(df["year"], df["flood_risk"],   color=WONG_PALETTE["skyblue"], linewidth=2.2, label="Flood")
-        ax.plot(df["year"], df["drought_risk"], color=WONG_PALETTE["orange"],  linewidth=2.2, label="Drought")
+            # Flood band
+            fig_r.add_trace(go.Scatter(x=mc["year"], y=mc["flood_p95"],
+                mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
+            fig_r.add_trace(go.Scatter(x=mc["year"], y=mc["flood_p05"],
+                mode="lines", line=dict(width=0), fill="tonexty",
+                fillcolor="rgba(86,180,233,0.16)", name="Flood 5–95% band",
+                hoverinfo="skip"))
+            # Drought band
+            fig_r.add_trace(go.Scatter(x=mc["year"], y=mc["drought_p95"],
+                mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
+            fig_r.add_trace(go.Scatter(x=mc["year"], y=mc["drought_p05"],
+                mode="lines", line=dict(width=0), fill="tonexty",
+                fillcolor="rgba(230,159,0,0.16)", name="Drought 5–95% band",
+                hoverinfo="skip"))
+
+        fig_r.add_trace(go.Scatter(
+            x=df["year"], y=df["flood_risk"], mode="lines", name="🌊 Flood",
+            line=dict(color="#56B4E9", width=3, shape="spline"),
+            hovertemplate="<b>%{x}</b>: <b>%{y:.0f}</b>/100<extra>Flood</extra>",
+        ))
+        fig_r.add_trace(go.Scatter(
+            x=df["year"], y=df["drought_risk"], mode="lines", name="🌵 Drought",
+            line=dict(color="#E69F00", width=3, shape="spline"),
+            hovertemplate="<b>%{x}</b>: <b>%{y:.0f}</b>/100<extra>Drought</extra>",
+        ))
+
+        # Challenge target lines
         if st.session_state.get("challenge_on", False):
-            ax.axhline(target_flood, linestyle="--", alpha=0.5, color=WONG_PALETTE["skyblue"])
-            ax.axhline(target_drought, linestyle="--", alpha=0.5, color=WONG_PALETTE["orange"])
-        ax.set_ylim(0, 100); ax.set_xlabel("Year"); ax.set_ylabel("Risk index (0–100)")
-        ax.set_title("Risk trajectories")
-        ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
-        ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
-        ax.legend(frameon=False, loc="upper left")
-        fig.tight_layout()
-        st.pyplot(fig, clear_figure=True)
+            fig_r.add_hline(y=target_flood, line=dict(color="#56B4E9", width=1, dash="dash"),
+                            annotation=dict(text=f"Flood target ≤ {target_flood}",
+                                            font=dict(size=9, color="#56B4E9"),
+                                            bgcolor="rgba(15,23,42,0.6)"),
+                            annotation_position="left")
+            fig_r.add_hline(y=target_drought, line=dict(color="#E69F00", width=1, dash="dash"),
+                            annotation=dict(text=f"Drought target ≤ {target_drought}",
+                                            font=dict(size=9, color="#E69F00"),
+                                            bgcolor="rgba(15,23,42,0.6)"),
+                            annotation_position="right")
+
+        layout = _plotly_layout("Risk trajectories (0–100 unitless index)", "Risk index")
+        layout["yaxis"]["range"] = [0, 100]
+        fig_r.update_layout(**layout)
+        st.plotly_chart(fig_r, use_container_width=True,
+                        config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
 
     # Researcher mode: extra diagnostics
     if st.session_state["researcher_mode"]:
