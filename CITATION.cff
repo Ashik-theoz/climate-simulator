@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: London Climate Engineering Simulator
+message: "If you use this software, please cite it as below."
+type: software
+version: 0.3.0
+date-released: "2026-05-08"
+authors:
+  - given-names: Ashikujjaman
+    family-names: Mohammad
+    affiliation: "Imperial College London"
+url: "https://climate-simulator.streamlit.app/"
+repository-code: "https://github.com/Ashik-theoz/climate-simulator"
+license: MIT
+keywords:
+  - climate
+  - urban-engineering
+  - flood-risk
+  - drought-risk
+  - educational-simulator
+  - streamlit
+abstract: >
+  An interactive 0-D educational simulator that links CO₂ emissions,
+  rainfall change, urbanization, and green infrastructure to local
+  flood and drought risk indices in London. Designed for the Great
+  Exhibition Road Festival (Imperial College London) and as a teaching
+  tool for environmental engineering courses.
