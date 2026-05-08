@@ -3,34 +3,33 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
+
+# Map deps
+import folium
+from folium.plugins import HeatMap
+from streamlit_folium import st_folium
 
 # ----------------------------
 # Page
 # ----------------------------
 st.set_page_config(page_title="Can Engineering Reverse the Climate Clock?", layout="wide")
+
 # ----------------------------
 # Model
 # ----------------------------
 def simulate(years=80, co2_ppm=450, rainfall_change_pct=10, green_infra_pct=20, urbanization_pct=40):
     t = np.arange(years + 1)
-
     temp_anom = 1.2 * np.log(co2_ppm / 280)
     temp_series = temp_anom * (1 - np.exp(-t / 25))
-
     rainfall_factor = 1 + rainfall_change_pct / 100.0
     impervious = urbanization_pct / 100.0
     green = green_infra_pct / 100.0
-
     runoff_index = (rainfall_factor * (0.6 + 1.2 * impervious) * (1 - 0.55 * green))
     runoff_series = runoff_index * (1 + 0.08 * temp_series)
-
     flood_risk = 100 * (1 - np.exp(-0.9 * runoff_series))
-
     evap = (1 + 0.18 * temp_series)
     drought_index = (evap / rainfall_factor) * (1 - 0.15 * green)
     drought_risk = 100 * (1 - np.exp(-0.8 * drought_index))
-
     df = pd.DataFrame(
         {
             "year": 2025 + t,
@@ -41,41 +40,35 @@ def simulate(years=80, co2_ppm=450, rainfall_change_pct=10, green_infra_pct=20, 
     )
     return df
 
-
 # ----------------------------
 # Defaults + session state init
 # ----------------------------
 DEFAULTS = {
-    # main
     "mode": "Standard",
     "years": 80,
     "co2_ppm": 450,
     "rainfall_change_pct": 10,
     "green_infra_pct": 20,
     "urbanization_pct": 40,
-    # challenge
     "challenge_on": False,
     "challenge_won": False,
-    "difficulty_choice": "Medium",  # NOTE: widget key is difficulty_choice (not difficulty)
-    # scenario compare
+    "difficulty_choice": "Medium",
     "compare_on": False,
     "scenario_A": None,
     "scenario_B": None,
+    "chat_history": [],
 }
-
 DIFFICULTY_TARGETS = {
     "Easy": {"target_flood": 55, "target_drought": 55},
     "Medium": {"target_flood": 40, "target_drought": 40},
     "Hard": {"target_flood": 30, "target_drought": 30},
 }
-
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 
 def snapshot_current(df: pd.DataFrame):
-    """Store params + dataframe snapshot for scenario comparison."""
     params = {
         "mode": st.session_state["mode"],
         "years": int(st.session_state["years"]),
@@ -93,7 +86,6 @@ def pretty_params(p: dict) -> str:
         f"Green={p['green_infra_pct']}%, Urban={p['urbanization_pct']}%"
     )
 
-
 # ----------------------------
 # UI Header
 # ----------------------------
@@ -103,38 +95,20 @@ st.caption(
 )
 
 # ----------------------------
-# Sidebar UI (ALL controls live here)
+# Sidebar UI
 # ----------------------------
 with st.sidebar:
     st.header("Controls")
 
-    # Reset everything (avoid Streamlit key errors by clearing widget keys first)
     if st.button("🔄 Reset to Default"):
-        for key in [
-            "mode",
-            "years",
-            "co2_ppm",
-            "rainfall_change_pct",
-            "green_infra_pct",
-            "urbanization_pct",
-            "challenge_on",
-            "challenge_won",
-            "difficulty_choice",
-            "compare_on",
-            "scenario_A",
-            "scenario_B",
-        ]:
+        for key in list(DEFAULTS.keys()):
             st.session_state.pop(key, None)
-
-        # re-seed defaults
         for k, v in DEFAULTS.items():
             st.session_state[k] = v
-
         st.rerun()
 
     st.subheader("Quick scenarios")
     c1, c2, c3 = st.columns(3)
-
     if c1.button("🏢 Business"):
         st.session_state.update(
             {
@@ -148,7 +122,6 @@ with st.sidebar:
             }
         )
         st.rerun()
-
     if c2.button("🌿 Green"):
         st.session_state.update(
             {
@@ -162,7 +135,6 @@ with st.sidebar:
             }
         )
         st.rerun()
-
     if c3.button("🏙️ Urban"):
         st.session_state.update(
             {
@@ -179,18 +151,14 @@ with st.sidebar:
 
     st.divider()
 
-    # Mode (Standard / Kids)
     st.radio("Mode", ["Standard", "Kids (simple)"], key="mode")
 
-    # Main sliders (always present)
     st.slider("Simulation horizon (years)", 20, 120, step=5, key="years")
     st.slider("CO₂ concentration (ppm)", 280, 900, step=10, key="co2_ppm")
     st.slider("Rainfall change (%)", -30, 50, step=1, key="rainfall_change_pct")
 
-    # Kids vs Standard control depth
     if st.session_state["mode"] == "Kids (simple)":
         st.slider("Green solutions (%)", 0, 100, step=5, key="green_infra_pct")
-        # fixed in kids mode (safe because urbanization slider is NOT instantiated in kids mode)
         st.session_state["urbanization_pct"] = 45
         st.info("Kids mode uses fewer controls for faster exploration.")
     else:
@@ -199,31 +167,34 @@ with st.sidebar:
 
     st.divider()
 
-    # ----------------------------
-    # Challenge mode (Sidebar)
-    # ----------------------------
     st.subheader("🎯 Challenge mode")
     st.toggle("Enable challenge", key="challenge_on")
-
     if st.button("🏆 Reset challenge calibration"):
-        # only reset the celebration state + difficulty widget (targets re-sync automatically)
         st.session_state["challenge_won"] = False
         st.session_state.pop("difficulty_choice", None)
         st.rerun()
-
     diff = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], key="difficulty_choice")
     target_flood = int(DIFFICULTY_TARGETS[diff]["target_flood"])
     target_drought = int(DIFFICULTY_TARGETS[diff]["target_drought"])
-
     st.caption(f"Targets: Flood ≤ {target_flood} | Drought ≤ {target_drought}")
 
     st.divider()
 
-    # ----------------------------
-    # Scenario comparison mode (Sidebar)
-    # ----------------------------
     st.subheader("🧪 Scenario comparison")
     st.toggle("Enable comparison", key="compare_on")
+
+    st.divider()
+
+    st.subheader("🤖 AI assistant")
+    st.caption("Optional: paste an Anthropic API key to enable chat. Without a key, a built-in explainer still works.")
+    api_key_input = st.text_input(
+        "Anthropic API key (optional)",
+        type="password",
+        value=os.environ.get("ANTHROPIC_API_KEY", ""),
+        help="Stored only in this session. Leave blank to use the offline explainer.",
+    )
+    if api_key_input:
+        os.environ["ANTHROPIC_API_KEY"] = api_key_input
 
 # ----------------------------
 # Run simulation (current)
@@ -236,15 +207,11 @@ df = simulate(
     urbanization_pct=st.session_state["urbanization_pct"],
 )
 
-# End-of-horizon values
 flood_val = float(df["flood_risk"].iloc[-1])
 drought_val = float(df["drought_risk"].iloc[-1])
 temp_val = float(df["temp_anomaly_C"].iloc[-1])
 
-# ----------------------------
-# Comparison buttons now that df exists
-# (these MUST run after df is computed)
-# ----------------------------
+# Sidebar comparison buttons (after df is computed)
 with st.sidebar:
     if st.session_state.get("compare_on", False):
         b1, b2, b3 = st.columns(3)
@@ -258,33 +225,28 @@ with st.sidebar:
             st.session_state["scenario_A"] = None
             st.session_state["scenario_B"] = None
             st.rerun()
-
         if st.session_state.get("scenario_A"):
             st.caption("A: " + pretty_params(st.session_state["scenario_A"]["params"]))
         if st.session_state.get("scenario_B"):
             st.caption("B: " + pretty_params(st.session_state["scenario_B"]["params"]))
 
 # ----------------------------
-# Challenge status box (compact, above graphs)
+# Challenge status
 # ----------------------------
 if st.session_state.get("challenge_on", False):
     flood_ok = flood_val <= target_flood
     drought_ok = drought_val <= target_drought
-
     colA, colB = st.columns(2)
     with colA:
         if flood_ok:
             st.success("🌊 Flood OK")
         else:
             st.error("🌊 Flood too high")
-
     with colB:
         if drought_ok:
             st.success("🌵 Drought OK")
         else:
             st.error("🌵 Drought too high")
-
-    # Balloons only once per NEW win
     if flood_ok and drought_ok:
         if not st.session_state.get("challenge_won", False):
             st.balloons()
@@ -301,145 +263,417 @@ col2.metric("End-of-horizon flood risk (0–100)", f"{flood_val:.0f}")
 col3.metric("End-of-horizon drought risk (0–100)", f"{drought_val:.0f}")
 
 # ----------------------------
-# Charts (professional-ish Matplotlib without forcing colors)
+# Tabs: Charts | Map | AI
 # ----------------------------
-left, right = st.columns([1, 1])
+tab_charts, tab_map, tab_ai = st.tabs(["📈 Charts", "🗺️ London map", "🤖 AI assistant"])
 
-with left:
-    st.subheader("Temperature (proxy)")
+# ============================
+# TAB 1 — Charts
+# ============================
+with tab_charts:
+    left, right = st.columns([1, 1])
+    with left:
+        st.subheader("Temperature (proxy)")
+        fig = plt.figure(figsize=(6.8, 4.2))
+        ax = fig.add_subplot(111)
+        ax.plot(df["year"], df["temp_anomaly_C"], linewidth=2)
+        ax.set_title("Projected warming over time")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("°C")
+        ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
+        ax.minorticks_on()
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        fig.tight_layout()
+        st.pyplot(fig, clear_figure=True)
+    with right:
+        st.subheader("Risk proxies")
+        fig = plt.figure(figsize=(6.8, 4.2))
+        ax = fig.add_subplot(111)
+        ax.plot(df["year"], df["flood_risk"], linewidth=2, label="Flood risk")
+        ax.plot(df["year"], df["drought_risk"], linewidth=2, label="Drought risk")
+        ax.set_title("Flood and drought risk trajectory")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Risk (0–100)")
+        ax.set_ylim(0, 100)
+        ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
+        ax.minorticks_on()
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        if st.session_state.get("challenge_on", False):
+            ax.axhline(target_flood, linestyle="--", alpha=0.6)
+            ax.axhline(target_drought, linestyle="--", alpha=0.6)
+        ax.legend(frameon=False, loc="upper left")
+        fig.tight_layout()
+        st.pyplot(fig, clear_figure=True)
 
-    fig = plt.figure(figsize=(6.8, 4.2))
-    ax = fig.add_subplot(111)
+    # Scenario comparison
+    if st.session_state.get("compare_on", False):
+        A = st.session_state.get("scenario_A")
+        B = st.session_state.get("scenario_B")
+        st.divider()
+        st.subheader("🧪 Scenario comparison")
+        if not A or not B:
+            st.info("Save two scenarios (A and B) from the sidebar to compare them here.")
+        else:
+            dfA = A["df"]
+            dfB = B["df"]
+            tA, fA, dA = float(dfA["temp_anomaly_C"].iloc[-1]), float(dfA["flood_risk"].iloc[-1]), float(dfA["drought_risk"].iloc[-1])
+            tB, fB, dB = float(dfB["temp_anomaly_C"].iloc[-1]), float(dfB["flood_risk"].iloc[-1]), float(dfB["drought_risk"].iloc[-1])
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Δ Warming (A → B)", f"{(tB - tA):+.2f} °C")
+            m2.metric("Δ Flood risk (A → B)", f"{(fB - fA):+.0f}")
+            m3.metric("Δ Drought risk (A → B)", f"{(dB - dA):+.0f}")
+            cL, cR = st.columns(2)
+            with cL:
+                st.markdown("**Temperature: A vs B**")
+                fig = plt.figure(figsize=(6.8, 4.2))
+                ax = fig.add_subplot(111)
+                ax.plot(dfA["year"], dfA["temp_anomaly_C"], linewidth=2, label="Scenario A")
+                ax.plot(dfB["year"], dfB["temp_anomaly_C"], linewidth=2, linestyle="--", label="Scenario B")
+                ax.set_xlabel("Year")
+                ax.set_ylabel("°C")
+                ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
+                ax.spines["top"].set_visible(False)
+                ax.spines["right"].set_visible(False)
+                ax.legend(frameon=False, loc="upper left")
+                fig.tight_layout()
+                st.pyplot(fig, clear_figure=True)
+            with cR:
+                st.markdown("**Risks: A vs B**")
+                fig = plt.figure(figsize=(6.8, 4.2))
+                ax = fig.add_subplot(111)
+                ax.plot(dfA["year"], dfA["flood_risk"], linewidth=2, label="Flood (A)")
+                ax.plot(dfA["year"], dfA["drought_risk"], linewidth=2, label="Drought (A)")
+                ax.plot(dfB["year"], dfB["flood_risk"], linewidth=2, linestyle="--", label="Flood (B)")
+                ax.plot(dfB["year"], dfB["drought_risk"], linewidth=2, linestyle="--", label="Drought (B)")
+                ax.set_xlabel("Year")
+                ax.set_ylabel("Risk (0–100)")
+                ax.set_ylim(0, 100)
+                ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
+                ax.spines["top"].set_visible(False)
+                ax.spines["right"].set_visible(False)
+                ax.legend(frameon=False, loc="upper left")
+                fig.tight_layout()
+                st.pyplot(fig, clear_figure=True)
+            with st.expander("Show Scenario A & B parameters"):
+                st.write("**Scenario A**:", A["params"])
+                st.write("**Scenario B**:", B["params"])
 
-    ax.plot(df["year"], df["temp_anomaly_C"], linewidth=2)
+# ============================
+# TAB 2 — London map
+# ============================
 
-    ax.set_title("Projected warming over time")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("°C")
+# A small set of London locations with characteristics that
+# modulate flood vs drought risk locally:
+#   river_factor   – proximity / vulnerability to Thames flooding (0..1)
+#   green_factor   – existing green coverage (0..1)
+#   urban_factor   – built-up / impervious surface (0..1)
+LONDON_LOCATIONS = [
+    {"name": "South Kensington (Exhibition Road)", "lat": 51.4988, "lon": -0.1749, "river": 0.25, "green": 0.55, "urban": 0.70},
+    {"name": "Imperial College London",            "lat": 51.4988, "lon": -0.1749, "river": 0.25, "green": 0.50, "urban": 0.75},
+    {"name": "Hyde Park",                          "lat": 51.5073, "lon": -0.1657, "river": 0.20, "green": 0.95, "urban": 0.10},
+    {"name": "Westminster",                        "lat": 51.4995, "lon": -0.1248, "river": 0.85, "green": 0.30, "urban": 0.85},
+    {"name": "Canary Wharf",                       "lat": 51.5054, "lon": -0.0235, "river": 0.95, "green": 0.20, "urban": 0.95},
+    {"name": "Greenwich",                          "lat": 51.4826, "lon":  0.0077, "river": 0.90, "green": 0.55, "urban": 0.55},
+    {"name": "Hackney",                            "lat": 51.5450, "lon": -0.0553, "river": 0.40, "green": 0.45, "urban": 0.75},
+    {"name": "Richmond",                           "lat": 51.4613, "lon": -0.3037, "river": 0.65, "green": 0.80, "urban": 0.40},
+    {"name": "Croydon",                            "lat": 51.3762, "lon": -0.0982, "river": 0.20, "green": 0.40, "urban": 0.80},
+    {"name": "Heathrow Area",                      "lat": 51.4700, "lon": -0.4543, "river": 0.30, "green": 0.35, "urban": 0.85},
+]
 
-    ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
-    ax.minorticks_on()
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
 
-    fig.tight_layout()
-    st.pyplot(fig, clear_figure=True)
+def local_risks(loc, flood_global, drought_global, user_green_pct, user_urban_pct):
+    """Modulate the global risks by each location's geography."""
+    river = loc["river"]
+    green = loc["green"]
+    urban = loc["urban"]
 
-with right:
-    st.subheader("Risk proxies")
+    # Combine user-controlled green/urban with location's intrinsic profile
+    combined_green = 0.5 * green + 0.5 * (user_green_pct / 100.0)
+    combined_urban = 0.5 * urban + 0.5 * (user_urban_pct / 100.0)
 
-    fig = plt.figure(figsize=(6.8, 4.2))
-    ax = fig.add_subplot(111)
+    # Flood: amplified by river proximity & impervious surface, dampened by green
+    flood_local = flood_global * (0.7 + 0.6 * river) * (0.7 + 0.6 * combined_urban) * (1 - 0.35 * combined_green)
+    # Drought: amplified in dense urban areas, dampened by green
+    drought_local = drought_global * (0.8 + 0.4 * combined_urban) * (1 - 0.30 * combined_green)
 
-    ax.plot(df["year"], df["flood_risk"], linewidth=2, label="Flood risk")
-    ax.plot(df["year"], df["drought_risk"], linewidth=2, label="Drought risk")
+    return float(np.clip(flood_local, 0, 100)), float(np.clip(drought_local, 0, 100))
 
-    ax.set_title("Flood and drought risk trajectory")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Risk (0–100)")
-    ax.set_ylim(0, 100)
 
-    ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
-    ax.minorticks_on()
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+def risk_color(value):
+    """0=green, 50=amber, 100=red."""
+    if value < 25:
+        return "#2ecc71"   # green
+    if value < 50:
+        return "#f1c40f"   # yellow
+    if value < 75:
+        return "#e67e22"   # orange
+    return "#e74c3c"       # red
 
-    # Target threshold lines (ONLY when challenge is on)
-    if st.session_state.get("challenge_on", False):
-        ax.axhline(target_flood, linestyle="--", alpha=0.6)
-        ax.axhline(target_drought, linestyle="--", alpha=0.6)
 
-    ax.legend(frameon=False, loc="upper left")
+with tab_map:
+    st.subheader("London climate-risk hotspots")
+    st.caption(
+        "Each marker shows how today's slider settings would play out in a real London neighbourhood. "
+        "Riverside areas get higher flood weighting; low-green / high-urban areas get higher drought weighting. "
+        "Click a marker for details."
+    )
 
-    fig.tight_layout()
-    st.pyplot(fig, clear_figure=True)
+    risk_view = st.radio(
+        "Show on map:",
+        ["Flood risk", "Drought risk", "Combined"],
+        horizontal=True,
+        key="map_risk_view",
+    )
 
-# ----------------------------
-# Scenario Comparison (MAIN PAGE)
-# ----------------------------
-if st.session_state.get("compare_on", False):
-    A = st.session_state.get("scenario_A")
-    B = st.session_state.get("scenario_B")
+    # Build map
+    m = folium.Map(location=[51.5074, -0.1278], zoom_start=11, tiles="cartodbpositron")
+
+    heat_points = []
+    for loc in LONDON_LOCATIONS:
+        f_local, d_local = local_risks(
+            loc,
+            flood_val,
+            drought_val,
+            st.session_state["green_infra_pct"],
+            st.session_state["urbanization_pct"],
+        )
+        if risk_view == "Flood risk":
+            shown = f_local
+        elif risk_view == "Drought risk":
+            shown = d_local
+        else:
+            shown = (f_local + d_local) / 2
+
+        color = risk_color(shown)
+        radius = 8 + (shown / 100.0) * 14  # 8..22 px
+
+        popup_html = (
+            f"<b>{loc['name']}</b><br>"
+            f"Flood risk: <b>{f_local:.0f}</b> / 100<br>"
+            f"Drought risk: <b>{d_local:.0f}</b> / 100<br>"
+            f"<i>River exposure: {int(loc['river']*100)}%, "
+            f"green: {int(loc['green']*100)}%, "
+            f"urban: {int(loc['urban']*100)}%</i>"
+        )
+
+        folium.CircleMarker(
+            location=[loc["lat"], loc["lon"]],
+            radius=radius,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.75,
+            weight=2,
+            popup=folium.Popup(popup_html, max_width=280),
+            tooltip=f"{loc['name']} — {risk_view}: {shown:.0f}",
+        ).add_to(m)
+
+        heat_points.append([loc["lat"], loc["lon"], shown / 100.0])
+
+    # Optional heat layer
+    HeatMap(heat_points, radius=35, blur=25, min_opacity=0.25).add_to(
+        folium.FeatureGroup(name="Heat layer", show=False).add_to(m)
+    )
+    folium.LayerControl().add_to(m)
+
+    # Legend
+    legend_html = """
+    <div style="position: fixed; bottom: 30px; left: 30px; z-index:9999;
+                background: rgba(255,255,255,0.92); padding: 8px 12px;
+                border-radius: 6px; font-size: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+      <b>Risk legend</b><br>
+      <span style="color:#2ecc71;">●</span> 0–25 low&nbsp;
+      <span style="color:#f1c40f;">●</span> 25–50 moderate<br>
+      <span style="color:#e67e22;">●</span> 50–75 high&nbsp;
+      <span style="color:#e74c3c;">●</span> 75–100 very high
+    </div>
+    """
+    m.get_root().html.add_child(folium.Element(legend_html))
+
+    st_folium(m, width=None, height=520, returned_objects=[])
+
+    st.caption(
+        "Note: location risk profiles are illustrative for the festival demo, not an official hazard map."
+    )
+
+# ============================
+# TAB 3 — AI assistant
+# ============================
+
+def offline_explainer(temp, flood, drought, params):
+    """Rule-based fallback that always works (no API needed)."""
+    bits = []
+    if temp < 1.0:
+        bits.append("warming stays modest")
+    elif temp < 2.0:
+        bits.append("warming reaches a noticeable level")
+    else:
+        bits.append("warming climbs into a dangerous range")
+
+    if flood > 70:
+        bits.append("flood risk becomes severe — surface water and river flooding are very likely")
+    elif flood > 40:
+        bits.append("flood risk is moderate but rising")
+    else:
+        bits.append("flood risk stays relatively contained")
+
+    if drought > 70:
+        bits.append("drought stress is severe — water supply and vegetation suffer")
+    elif drought > 40:
+        bits.append("drought risk is moderate")
+    else:
+        bits.append("drought risk stays low")
+
+    levers = []
+    if params["green_infra_pct"] < 30:
+        levers.append("Adding more green infrastructure (parks, green roofs, SuDS) is the single biggest lever you haven't pulled.")
+    if params["urbanization_pct"] > 60:
+        levers.append("Heavy urbanization makes runoff worse — permeable pavements and tree pits would help.")
+    if params["co2_ppm"] > 500:
+        levers.append("CO₂ is high — this drives the warming term and amplifies every other risk.")
+    if not levers:
+        levers.append("Your settings are already in a fairly resilient zone — try pushing CO₂ down further to see what fully decarbonised looks like.")
+
+    summary = (
+        f"Over {params['years']} years with CO₂ at {params['co2_ppm']} ppm, "
+        f"green infrastructure at {params['green_infra_pct']}%, and "
+        f"urbanization at {params['urbanization_pct']}%, the simulator predicts that "
+        + ", ".join(bits) + ".\n\n"
+        + "**What you could try next:**\n- " + "\n- ".join(levers)
+    )
+    return summary
+
+
+def ask_anthropic(messages, system_prompt):
+    """Call Anthropic API. Returns string or raises."""
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        raise RuntimeError("The `anthropic` package is not installed. Run: pip install anthropic")
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("No Anthropic API key set.")
+
+    client = Anthropic(api_key=api_key)
+    resp = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=600,
+        system=system_prompt,
+        messages=messages,
+    )
+    # Concatenate text blocks
+    parts = []
+    for block in resp.content:
+        if getattr(block, "type", None) == "text":
+            parts.append(block.text)
+    return "".join(parts).strip()
+
+
+with tab_ai:
+    st.subheader("🤖 Ask the climate engineer")
+    st.caption(
+        "Ask anything about your current scenario. Works offline with a built-in explainer; "
+        "if you've added an Anthropic API key in the sidebar, you'll get a richer chat."
+    )
+
+    current_params = {
+        "years": int(st.session_state["years"]),
+        "co2_ppm": int(st.session_state["co2_ppm"]),
+        "rainfall_change_pct": int(st.session_state["rainfall_change_pct"]),
+        "green_infra_pct": int(st.session_state["green_infra_pct"]),
+        "urbanization_pct": int(st.session_state["urbanization_pct"]),
+    }
+
+    # ---- Auto explainer (always available) ----
+    with st.container(border=True):
+        st.markdown("**📝 Auto-summary of your current scenario**")
+        st.write(offline_explainer(temp_val, flood_val, drought_val, current_params))
 
     st.divider()
-    st.subheader("🧪 Scenario comparison")
 
-    if not A or not B:
-        st.info("Save two scenarios (A and B) from the sidebar to compare them here.")
-    else:
-        dfA = A["df"]
-        dfB = B["df"]
+    # ---- Chat ----
+    st.markdown("**💬 Chat with the AI assistant**")
 
-        # End metrics
-        tA, fA, dA = float(dfA["temp_anomaly_C"].iloc[-1]), float(dfA["flood_risk"].iloc[-1]), float(dfA["drought_risk"].iloc[-1])
-        tB, fB, dB = float(dfB["temp_anomaly_C"].iloc[-1]), float(dfB["flood_risk"].iloc[-1]), float(dfB["drought_risk"].iloc[-1])
+    use_kids_tone = st.session_state["mode"] == "Kids (simple)"
+    system_prompt = (
+        "You are a friendly climate engineering tutor at the Great Exhibition Road Festival in London. "
+        "You help visitors understand a simple climate simulator. Keep replies short (under ~120 words), "
+        "concrete, and grounded in the user's CURRENT simulator settings provided below. "
+        "Avoid alarmism; explain trade-offs clearly. "
+        + ("Use a playful, simple tone suitable for children aged 8-12. " if use_kids_tone else "Use clear, accessible language for a general adult audience. ")
+        + f"\n\nCURRENT SCENARIO:\n"
+        + f"- horizon: {current_params['years']} years\n"
+        + f"- CO2: {current_params['co2_ppm']} ppm\n"
+        + f"- rainfall change: {current_params['rainfall_change_pct']}%\n"
+        + f"- green infrastructure: {current_params['green_infra_pct']}%\n"
+        + f"- urbanization: {current_params['urbanization_pct']}%\n"
+        + f"- end-of-horizon warming: {temp_val:.2f} °C\n"
+        + f"- end-of-horizon flood risk: {flood_val:.0f}/100\n"
+        + f"- end-of-horizon drought risk: {drought_val:.0f}/100\n"
+    )
 
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Δ Warming (A → B)", f"{(tB - tA):+.2f} °C", help="Positive means Scenario B is warmer at end-of-horizon.")
-        m2.metric("Δ Flood risk (A → B)", f"{(fB - fA):+.0f}", help="Positive means Scenario B has higher flood risk.")
-        m3.metric("Δ Drought risk (A → B)", f"{(dB - dA):+.0f}", help="Positive means Scenario B has higher drought risk.")
+    # render chat history
+    for msg in st.session_state["chat_history"]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-        # Plots
-        cL, cR = st.columns(2)
+    user_q = st.chat_input("Ask a question, e.g. 'Why is flood risk so high?'")
+    if user_q:
+        st.session_state["chat_history"].append({"role": "user", "content": user_q})
+        with st.chat_message("user"):
+            st.markdown(user_q)
 
-        with cL:
-            st.markdown("**Temperature: A vs B**")
-            fig = plt.figure(figsize=(6.8, 4.2))
-            ax = fig.add_subplot(111)
+        with st.chat_message("assistant"):
+            placeholder = st.empty()
+            placeholder.markdown("_Thinking..._")
+            try:
+                # Prefer Anthropic API if key present
+                api_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+                if api_key_set:
+                    answer = ask_anthropic(
+                        messages=[{"role": m["role"], "content": m["content"]}
+                                  for m in st.session_state["chat_history"]],
+                        system_prompt=system_prompt,
+                    )
+                else:
+                    raise RuntimeError("no_api_key")
+            except Exception as e:
+                # graceful fallback
+                fallback = offline_explainer(temp_val, flood_val, drought_val, current_params)
+                if str(e) == "no_api_key":
+                    answer = (
+                        "_(No API key set — using built-in explainer.)_\n\n"
+                        + fallback
+                    )
+                else:
+                    answer = (
+                        f"_(AI service unavailable: {e}. Falling back to built-in explainer.)_\n\n"
+                        + fallback
+                    )
+            placeholder.markdown(answer)
+            st.session_state["chat_history"].append({"role": "assistant", "content": answer})
 
-            ax.plot(dfA["year"], dfA["temp_anomaly_C"], linewidth=2, label="Scenario A")
-            ax.plot(dfB["year"], dfB["temp_anomaly_C"], linewidth=2, linestyle="--", label="Scenario B")
-
-            ax.set_xlabel("Year")
-            ax.set_ylabel("°C")
-            ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
-            ax.minorticks_on()
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.legend(frameon=False, loc="upper left")
-
-            fig.tight_layout()
-            st.pyplot(fig, clear_figure=True)
-
-        with cR:
-            st.markdown("**Risks: A vs B**")
-            fig = plt.figure(figsize=(6.8, 4.2))
-            ax = fig.add_subplot(111)
-
-            ax.plot(dfA["year"], dfA["flood_risk"], linewidth=2, label="Flood (A)")
-            ax.plot(dfA["year"], dfA["drought_risk"], linewidth=2, label="Drought (A)")
-            ax.plot(dfB["year"], dfB["flood_risk"], linewidth=2, linestyle="--", label="Flood (B)")
-            ax.plot(dfB["year"], dfB["drought_risk"], linewidth=2, linestyle="--", label="Drought (B)")
-
-            ax.set_xlabel("Year")
-            ax.set_ylabel("Risk (0–100)")
-            ax.set_ylim(0, 100)
-            ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
-            ax.minorticks_on()
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.legend(frameon=False, loc="upper left")
-
-            fig.tight_layout()
-            st.pyplot(fig, clear_figure=True)
-
-        with st.expander("Show Scenario A & B parameters"):
-            st.write("**Scenario A**:", A["params"])
-            st.write("**Scenario B**:", B["params"])
+    cclear1, cclear2 = st.columns([1, 6])
+    if cclear1.button("Clear chat"):
+        st.session_state["chat_history"] = []
+        st.rerun()
 
 # ----------------------------
 # Explanation + Data
 # ----------------------------
 st.divider()
-st.subheader("What’s going on here?")
+st.subheader("What's going on here?")
 st.write(
     "This is a fast, educational simulator (not a full climate model). "
-    "It’s designed for interactive exploration: CO₂ affects warming, rainfall affects water stress, "
+    "It's designed for interactive exploration: CO₂ affects warming, rainfall affects water stress, "
     "urbanization increases runoff, and green infrastructure reduces runoff and slightly improves resilience."
 )
-
 with st.expander("Show data table"):
     st.dataframe(df, use_container_width=True)
+
 # ----------------------------
 # Footer
 # ----------------------------
@@ -447,5 +681,4 @@ st.markdown("---")
 st.caption(
     "Developed by Ashikujjaman Mohammad | MSc Environmental Engineering | "
     "Imperial College London | 2026"
-)    
-    
+)
