@@ -249,6 +249,205 @@ section[data-testid="stSidebar"] .stToggle {
 </style>
 """, unsafe_allow_html=True)
 
+# ============================================================================
+# SPLASH SCREEN — game-style intro
+# ============================================================================
+if not st.session_state.get("splash_shown", False):
+    # Hide sidebar + header for a true full-screen takeover
+    st.markdown("""
+    <style>
+    section[data-testid="stSidebar"] { display: none !important; }
+    header[data-testid="stHeader"]   { display: none !important; }
+    div[data-testid="stToolbar"]     { display: none !important; }
+    .block-container { padding-top: 0 !important; max-width: 100% !important; }
+
+    .splash {
+        position: relative;
+        min-height: 90vh;
+        padding: 40px 20px 30px;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        text-align: center;
+        background:
+            radial-gradient(ellipse 1200px 600px at 50% 0%, rgba(46,134,222,0.30), transparent 60%),
+            radial-gradient(ellipse 800px 500px at 90% 100%, rgba(238,90,36,0.28), transparent 60%),
+            radial-gradient(ellipse 800px 500px at 10% 100%, rgba(125,211,252,0.18), transparent 60%);
+        border-radius: 20px;
+        overflow: hidden;
+    }
+    /* Floating ambient particles */
+    .splash::before {
+        content: '';
+        position: absolute; inset: 0;
+        background-image:
+            radial-gradient(circle at 15% 20%, rgba(125,211,252,0.4) 1px, transparent 1.5px),
+            radial-gradient(circle at 85% 30%, rgba(251,191,36,0.4) 1px, transparent 1.5px),
+            radial-gradient(circle at 25% 70%, rgba(248,113,113,0.4) 1px, transparent 1.5px),
+            radial-gradient(circle at 75% 85%, rgba(125,211,252,0.4) 1px, transparent 1.5px);
+        background-size: 240px 240px;
+        animation: drift 18s linear infinite;
+        opacity: 0.6;
+    }
+    @keyframes drift {
+        0%   { background-position: 0 0, 0 0, 0 0, 0 0; }
+        100% { background-position: 240px 240px, -240px 240px, 240px -240px, -240px -240px; }
+    }
+
+    .splash-icons {
+        font-size: 72px;
+        letter-spacing: 28px;
+        margin-bottom: 28px;
+        filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5));
+        animation: floatIcons 3.6s ease-in-out infinite;
+    }
+    .splash-icons span:nth-child(1) { animation: bounceIcon 3s ease-in-out infinite; display: inline-block; }
+    .splash-icons span:nth-child(2) { animation: bounceIcon 3s ease-in-out infinite 0.5s; display: inline-block; }
+    .splash-icons span:nth-child(3) { animation: bounceIcon 3s ease-in-out infinite 1.0s; display: inline-block; }
+    @keyframes bounceIcon {
+        0%,100% { transform: translateY(0) rotate(0); }
+        50%     { transform: translateY(-14px) rotate(5deg); }
+    }
+    @keyframes floatIcons {
+        0%,100% { filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5)); }
+        50%     { filter: drop-shadow(0 12px 26px rgba(125,211,252,0.4)); }
+    }
+
+    .splash-welcome {
+        display: inline-block;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.5em;
+        color: #fbbf24;
+        background: rgba(251,191,36,0.08);
+        border: 1px solid rgba(251,191,36,0.35);
+        border-radius: 999px;
+        padding: 6px 22px 6px 28px;
+        margin-bottom: 24px;
+        animation: badgeIn 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.2s both, badgeGlow 3s ease-in-out infinite 1s;
+        text-transform: uppercase;
+    }
+
+    .splash-lab {
+        font-size: clamp(36px, 6vw, 64px);
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        line-height: 1.0;
+        background: linear-gradient(90deg, #7dd3fc 0%, #fbbf24 50%, #f87171 100%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        margin: 0;
+        animation: fadeInUp 0.9s cubic-bezier(0.2,0.8,0.2,1) 0.5s both, shimmer 6s linear infinite 0.5s;
+        text-shadow: 0 0 40px rgba(125,211,252,0.3);
+    }
+
+    .splash-divider {
+        width: 120px; height: 2px;
+        margin: 26px 0 20px;
+        background: linear-gradient(90deg, transparent, #fbbf24, transparent);
+        animation: fadeIn 0.8s ease 0.9s both;
+    }
+
+    .splash-question {
+        font-size: clamp(20px, 2.4vw, 30px);
+        font-style: italic;
+        color: #e2e8f0;
+        font-weight: 400;
+        margin: 0 0 18px;
+        animation: fadeInUp 0.9s cubic-bezier(0.2,0.8,0.2,1) 1.05s both;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    }
+
+    .splash-tagline {
+        font-size: 15px;
+        color: #94a3b8;
+        letter-spacing: 0.04em;
+        margin-bottom: 40px;
+        animation: fadeInUp 0.8s ease 1.3s both;
+    }
+    .splash-tagline .ts { color: #7dd3fc; }
+    .splash-tagline .ts2 { color: #fbbf24; }
+    .splash-tagline .ts3 { color: #f87171; font-weight: 700; }
+    .splash-tagline .sep { color: rgba(255,255,255,0.25); margin: 0 10px; }
+
+    .splash-prompt {
+        font-size: 12px; color: #64748b; letter-spacing: 0.2em; text-transform: uppercase;
+        margin-top: 12px;
+        animation: fadeIn 0.8s ease 1.6s both, blinkSoft 2s ease-in-out infinite 2s;
+    }
+    @keyframes blinkSoft { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+    /* Style the Streamlit "Enter the Lab" button when on splash */
+    .splash + div .stButton button {
+        background: linear-gradient(135deg, #7dd3fc 0%, #fbbf24 50%, #f87171 100%) !important;
+        background-size: 200% 100% !important;
+        color: #0b1220 !important;
+        font-size: 17px !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.1em !important;
+        padding: 16px 36px !important;
+        border: none !important;
+        border-radius: 14px !important;
+        box-shadow: 0 12px 40px rgba(125,211,252,0.4), 0 0 0 1px rgba(255,255,255,0.1) inset !important;
+        animation: shimmer 5s linear infinite, btnPulse 2.4s ease-in-out infinite, fadeInUp 0.9s ease 1.5s both !important;
+        transition: transform 0.18s ease !important;
+    }
+    .splash + div .stButton button:hover {
+        transform: translateY(-3px) scale(1.04) !important;
+        box-shadow: 0 18px 50px rgba(125,211,252,0.6), 0 0 0 1px rgba(255,255,255,0.15) inset !important;
+    }
+    @keyframes btnPulse {
+        0%,100% { box-shadow: 0 12px 40px rgba(125,211,252,0.4), 0 0 0 1px rgba(255,255,255,0.1) inset; }
+        50%     { box-shadow: 0 12px 50px rgba(251,191,36,0.55), 0 0 0 1px rgba(255,255,255,0.15) inset; }
+    }
+
+    .splash-credit {
+        margin-top: 30px;
+        font-size: 11px;
+        color: #475569;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        animation: fadeIn 1s ease 2s both;
+    }
+    </style>
+
+    <div class="splash">
+      <div class="splash-icons"><span>🌍</span><span>💧</span><span>🔥</span></div>
+      <div class="splash-welcome">⚡ &nbsp; W E L C O M E &nbsp;&nbsp; T O &nbsp; ⚡</div>
+      <div class="splash-lab">THE CLIMATE<br/>ENGINEERING LAB</div>
+      <div class="splash-divider"></div>
+      <div class="splash-question">"Can Engineering Reverse the Climate Clock?"</div>
+      <div class="splash-tagline">
+        <span class="ts">Pull the levers</span>
+        <span class="sep">·</span>
+        <span class="ts2">Watch London respond</span>
+        <span class="sep">·</span>
+        <span class="ts3">Reverse the clock</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Centered Enter button
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c2:
+        if st.button("⚡  ENTER THE LAB  →", use_container_width=True, key="enter_lab"):
+            st.session_state["splash_shown"] = True
+            st.rerun()
+
+    st.markdown("""
+    <div style="text-align:center;">
+      <div class="splash-prompt">▼  Click to begin  ▼</div>
+      <div class="splash-credit">Imperial College London · MSc Environmental Engineering · 2026</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.stop()
+
+
+# ============================================================================
+# MAIN APP — only reached after splash dismissed
+# ============================================================================
 st.markdown("""
 <div class="hero-wrap">
   <div class="hero-icons"><span class="ic">🌍</span><span class="ic">💧</span><span class="ic">🔥</span></div>
