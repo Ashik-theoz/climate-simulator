@@ -656,12 +656,21 @@ PRESET_CHIPS = {
 }
 
 
+def _hex_to_rgba(hex_color: str, alpha: float = 0.13) -> str:
+    """Convert a #RRGGBB hex string to an rgba() string Plotly accepts."""
+    h = hex_color.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def _spark(values, color="#7dd3fc", height=28):
     """Tiny inline sparkline showing how a parameter behaves over the horizon."""
     fig = go.Figure(go.Scatter(
         y=list(values), mode="lines",
         line=dict(color=color, width=1.6, shape="spline"),
-        fill="tozeroy", fillcolor=f"{color}22",
+        fill="tozeroy", fillcolor=_hex_to_rgba(color, 0.18),
         hoverinfo="skip",
     ))
     fig.update_layout(
