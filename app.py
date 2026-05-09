@@ -12,9 +12,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
-import folium
-from folium.plugins import HeatMap
-from streamlit_folium import st_folium
 import plotly.graph_objects as go
 
 from simulator import (
@@ -246,6 +243,41 @@ section[data-testid="stSidebar"] .stToggle {
 
 /* Plotly background transparency so charts blend with our theme */
 .js-plotly-plot, .plot-container { background: transparent !important; }
+
+/* Slim header replacing the bulky hero */
+.slim-header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 20px;
+    margin-bottom: 12px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(46,134,222,0.12), rgba(238,90,36,0.10));
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+    flex-wrap: wrap;
+    animation: fadeInUp 0.7s cubic-bezier(0.2,0.8,0.2,1);
+}
+.slim-icons {
+    font-size: 22px;
+    letter-spacing: 6px;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+}
+.slim-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    color: #fbbf24;
+    background: rgba(251,191,36,0.10);
+    border: 1px solid rgba(251,191,36,0.35);
+    border-radius: 999px;
+    padding: 4px 12px;
+}
+.slim-tagline { font-size: 13px; color: #cbd5e1; flex: 1; min-width: 200px; }
+.slim-tagline .ts  { color: #7dd3fc; font-weight: 600; }
+.slim-tagline .ts2 { color: #fbbf24; font-weight: 600; }
+.slim-tagline .ts3 { color: #f87171; font-weight: 700; }
+.slim-tagline .sep { color: rgba(255,255,255,0.25); margin: 0 8px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -448,21 +480,7 @@ if not st.session_state.get("splash_shown", False):
 # ============================================================================
 # MAIN APP — only reached after splash dismissed
 # ============================================================================
-st.markdown("""
-<div class="hero-wrap">
-  <div class="hero-icons"><span class="ic">🌍</span><span class="ic">💧</span><span class="ic">🔥</span></div>
-  <div class="hero-welcome">⚡ WELCOME TO THE CLIMATE ENGINEERING LAB</div>
-  <div class="hero-title">Can Engineering Reverse the Climate Clock?</div>
-  <div class="hero-tagline">
-    <span class="tag-step">Pull the levers</span>
-    <span class="tag-dot">·</span>
-    <span class="tag-step">Watch London respond</span>
-    <span class="tag-dot">·</span>
-    <span class="tag-step">Reverse the clock</span>
-  </div>
-  <div class="hero-sub">An interactive London-scale climate simulator — your engineering choices shape the future of flood, drought and heat in real time.</div>
-</div>
-""", unsafe_allow_html=True)
+# Hero removed — the splash already covers the title. We go straight to metrics.
 
 # ============================================================================
 # Session state defaults — synced with URL query params for shareable links
@@ -705,8 +723,8 @@ st.write("")
 # ============================================================================
 # Tabs
 # ============================================================================
-tab_charts, tab_map, tab_sens, tab_ai, tab_methods, tab_export = st.tabs(
-    ["📈 Charts", "🗺️ London map", "🔬 Sensitivity", "🤖 AI assistant",
+tab_charts, tab_sens, tab_ai, tab_methods, tab_export = st.tabs(
+    ["📈 Charts & live map", "🔬 Sensitivity", "🤖 AI assistant",
      "📚 Methods & references", "📤 Export & share"]
 )
 
@@ -846,6 +864,129 @@ with tab_charts:
         st.plotly_chart(fig_r, use_container_width=True,
                         config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
 
+    # ------------------------------------------------------------------
+    # LIVE 3D GLOBE — replaces the old London map tab
+    # ------------------------------------------------------------------
+    st.markdown("### 🌍 Live globe — London neighbourhoods respond to your sliders")
+    g_left, g_right = st.columns([3, 1])
+    with g_right:
+        globe_view = st.radio(
+            "Risk shown:",
+            ["Combined", "Flood risk", "Drought risk"],
+            key="globe_risk_view",
+        )
+        st.caption("🖱️ Drag the globe to rotate.\nMarker size + colour update live with the sliders.")
+
+    # Compute per-location risks (responds to current sliders)
+    globe_data = []
+    for loc in LONDON_LOCATIONS:
+        fl, dr = local_risk(loc, flood_val, drought_val,
+                            st.session_state["green_infra_pct"],
+                            st.session_state["urbanization_pct"])
+        if globe_view == "Flood risk":
+            shown = fl
+        elif globe_view == "Drought risk":
+            shown = dr
+        else:
+            shown = (fl + dr) / 2
+        globe_data.append({**loc, "flood": fl, "drought": dr, "shown": shown})
+
+    # Build the orthographic globe
+    fig_globe = go.Figure()
+
+    # Pulsing concentric rings for high-risk locations (drawn first → behind markers)
+    for d in globe_data:
+        if d["shown"] >= 60:
+            fig_globe.add_trace(go.Scattergeo(
+                lon=[d["lon"]], lat=[d["lat"]],
+                mode="markers",
+                marker=dict(
+                    size=int(28 + d["shown"] / 3),
+                    color="rgba(248,113,113,0.18)" if d["shown"] >= 75 else "rgba(56,189,248,0.18)",
+                    line=dict(width=0),
+                ),
+                hoverinfo="skip", showlegend=False,
+            ))
+
+    # Main markers
+    fig_globe.add_trace(go.Scattergeo(
+        lon=[d["lon"] for d in globe_data],
+        lat=[d["lat"] for d in globe_data],
+        text=[d["name"] for d in globe_data],
+        customdata=[[d["flood"], d["drought"], d.get("borough", "—"),
+                     int(d["river"] * 100), int(d["green"] * 100), int(d["urban"] * 100)]
+                    for d in globe_data],
+        mode="markers",
+        marker=dict(
+            size=[max(10, 8 + d["shown"] / 3) for d in globe_data],
+            color=[d["shown"] for d in globe_data],
+            colorscale=[
+                [0.0,  "#10b981"],   # green
+                [0.25, "#34d399"],
+                [0.5,  "#fbbf24"],   # amber
+                [0.75, "#fb923c"],   # orange
+                [1.0,  "#ef4444"],   # red
+            ],
+            cmin=0, cmax=100,
+            showscale=True,
+            colorbar=dict(
+                title=dict(text=globe_view, font=dict(color="#cbd5e1", size=11)),
+                tickfont=dict(color="#cbd5e1", size=10),
+                thickness=12, len=0.7, x=1.02,
+                bgcolor="rgba(0,0,0,0)",
+            ),
+            line=dict(width=1.5, color="rgba(255,255,255,0.65)"),
+            opacity=0.95,
+        ),
+        hovertemplate=(
+            "<b>%{text}</b><br>"
+            "🏙️ Borough: %{customdata[2]}<br>"
+            "🌊 Flood risk: <b>%{customdata[0]:.0f}</b>/100<br>"
+            "🌵 Drought risk: <b>%{customdata[1]:.0f}</b>/100<br>"
+            "<i>River %{customdata[3]}% · green %{customdata[4]}% · urban %{customdata[5]}%</i>"
+            "<extra></extra>"
+        ),
+        name="London hotspots",
+    ))
+
+    fig_globe.update_layout(
+        geo=dict(
+            projection=dict(
+                type="orthographic",
+                rotation=dict(lon=-0.13, lat=51.5, roll=0),
+                scale=4.2,
+            ),
+            showland=True, landcolor="rgb(40, 55, 80)",
+            showocean=True, oceancolor="rgb(8, 14, 28)",
+            showcountries=True, countrycolor="rgba(255,255,255,0.22)",
+            showcoastlines=True, coastlinecolor="rgba(125,211,252,0.5)",
+            showlakes=True, lakecolor="rgb(12, 22, 44)",
+            showrivers=True, rivercolor="rgba(56,189,248,0.5)",
+            bgcolor="rgba(0,0,0,0)",
+            center=dict(lon=-0.13, lat=51.5),
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="-apple-system, BlinkMacSystemFont, Inter, sans-serif", color="#cbd5e1"),
+        margin=dict(t=10, b=10, l=0, r=0),
+        height=560,
+        hoverlabel=dict(bgcolor="rgba(15,23,42,0.96)",
+                        bordercolor="rgba(125,211,252,0.4)",
+                        font=dict(color="#e2e8f0", size=12)),
+        transition=dict(duration=500, easing="cubic-in-out"),
+        showlegend=False,
+    )
+
+    with g_left:
+        st.plotly_chart(fig_globe, use_container_width=True,
+                        config={"displaylogo": False, "scrollZoom": True,
+                                "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
+
+    st.caption(
+        "Location risk profiles are illustrative for the festival demo, not an official hazard map. "
+        "For authoritative London flood data see the [Environment Agency Flood Map for Planning](https://flood-map-for-planning.service.gov.uk/)."
+    )
+
     # Researcher mode: extra diagnostics
     if st.session_state["researcher_mode"]:
         st.markdown("#### Diagnostics — runoff & evaporation indices")
@@ -893,136 +1034,7 @@ with tab_charts:
                 st.pyplot(fig, clear_figure=True)
 
 # ----------------------------------------------------------------------------
-# TAB 2 — London map
-# ----------------------------------------------------------------------------
-def risk_color_hex(value):
-    if value < 25: return "#2ecc71"
-    if value < 50: return "#f1c40f"
-    if value < 75: return "#e67e22"
-    return "#e74c3c"
-
-with tab_map:
-    st.subheader("London climate-risk hotspots")
-    st.caption("Each marker shows how today's slider settings would play out in a real London neighbourhood. "
-               "Riverside areas get higher flood weighting; low-green / high-urban areas get higher drought weighting.")
-    risk_view = st.radio("Show on map:", ["Flood risk", "Drought risk", "Combined"],
-                         horizontal=True, key="map_risk_view")
-    show_thames = st.checkbox(
-        "🌊 Show illustrative Thames flood corridor",
-        value=False,
-        help="Draws an indicative Thames-side high-flood-risk band. Not a substitute for the official EA Flood Map.",
-    )
-
-    m = folium.Map(location=[51.5074, -0.1278], zoom_start=11,
-                   tiles="cartodbdark_matter", control_scale=True)
-
-    map_css = """<style>
-    .climate-marker { font-size: 28px; text-align: center; line-height: 1;
-        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
-        transform: translate(-50%, -50%); position: relative; cursor: pointer; }
-    .climate-marker .ring { position: absolute; left: 50%; top: 50%;
-        width: 36px; height: 36px; border-radius: 50%;
-        transform: translate(-50%, -50%); pointer-events: none; }
-    .pulse-flood   .ring { background: rgba(56,189,248,0.35); animation: pf 1.8s infinite cubic-bezier(0.4,0,0.6,1); }
-    .pulse-drought .ring { background: rgba(251,146,60,0.35); animation: pd 1.8s infinite cubic-bezier(0.4,0,0.6,1); }
-    .pulse-extreme .ring { background: rgba(248,113,113,0.40); animation: pe 1.4s infinite cubic-bezier(0.4,0,0.6,1); }
-    @keyframes pf {0%{box-shadow:0 0 0 0 rgba(56,189,248,0.55);}70%{box-shadow:0 0 0 28px rgba(56,189,248,0);}100%{box-shadow:0 0 0 0 rgba(56,189,248,0);}}
-    @keyframes pd {0%{box-shadow:0 0 0 0 rgba(251,146,60,0.55);}70%{box-shadow:0 0 0 28px rgba(251,146,60,0);}100%{box-shadow:0 0 0 0 rgba(251,146,60,0);}}
-    @keyframes pe {0%{box-shadow:0 0 0 0 rgba(248,113,113,0.65);}70%{box-shadow:0 0 0 32px rgba(248,113,113,0);}100%{box-shadow:0 0 0 0 rgba(248,113,113,0);}}
-    .climate-legend { position: fixed; bottom: 24px; left: 24px; z-index:9999;
-        background: rgba(15,23,42,0.92); color: #e2e8f0; padding: 10px 14px;
-        border-radius: 10px; font-size: 12px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .leaflet-popup-content-wrapper { background: rgba(15,23,42,0.96); color: #e2e8f0;
-        border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
-    .leaflet-popup-tip { background: rgba(15,23,42,0.96); }
-    </style>"""
-    m.get_root().html.add_child(folium.Element(map_css))
-
-    # Optional Thames flood corridor (illustrative polyline)
-    if show_thames:
-        thames_corridor = [
-            (51.485, -0.30), (51.488, -0.22), (51.490, -0.16), (51.498, -0.115),
-            (51.500, -0.08), (51.505, -0.02), (51.499,  0.005), (51.494,  0.04),
-            (51.485,  0.07),
-        ]
-        folium.PolyLine(thames_corridor, color="#38bdf8", weight=10, opacity=0.45,
-                        tooltip="Illustrative Thames flood corridor (not the official EA flood map)"
-                        ).add_to(m)
-
-    heat_points = []
-    for loc in LONDON_LOCATIONS:
-        f_local, d_local = local_risk(loc, flood_val, drought_val,
-                                      st.session_state["green_infra_pct"],
-                                      st.session_state["urbanization_pct"])
-        if risk_view == "Flood risk":   shown, kind = f_local, "flood"
-        elif risk_view == "Drought risk": shown, kind = d_local, "drought"
-        else:
-            shown = (f_local + d_local) / 2
-            kind = "flood" if f_local >= d_local else "drought"
-
-        if kind == "flood":
-            emoji = "💧" if shown < 50 else "🌊"
-            pulse = "pulse-flood" if shown >= 45 else ""
-        else:
-            emoji = "🌵" if shown < 50 else "🔥"
-            pulse = "pulse-drought" if shown >= 45 else ""
-        if shown >= 75:
-            pulse, emoji = "pulse-extreme", "⚠️"
-
-        size = int(28 + (shown / 100.0) * 22)
-        marker_html = f"""
-        <div class="climate-marker {pulse}" style="font-size:{size}px;">
-            <div class="ring"></div>
-            <span style="position:relative;z-index:2;">{emoji}</span>
-        </div>"""
-        popup_html = f"""
-        <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; min-width:230px;">
-          <div style="font-weight:700; font-size:14px; margin-bottom:6px;">{loc['name']}</div>
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:6px;">Borough: {loc.get('borough','—')}</div>
-          <div style="display:flex; justify-content:space-between; padding:4px 0; border-top:1px solid rgba(255,255,255,0.1);">
-            <span>🌊 Flood risk</span><b style="color:#7dd3fc;">{f_local:.0f}/100</b>
-          </div>
-          <div style="display:flex; justify-content:space-between; padding:4px 0; border-top:1px solid rgba(255,255,255,0.1);">
-            <span>🌵 Drought risk</span><b style="color:#fbbf24;">{d_local:.0f}/100</b>
-          </div>
-          <div style="margin-top:8px; font-size:11px; color:#94a3b8;">
-            River exposure {int(loc['river']*100)}% · green {int(loc['green']*100)}% · urban {int(loc['urban']*100)}%
-          </div>
-        </div>"""
-
-        folium.Marker(
-            location=[loc["lat"], loc["lon"]],
-            icon=folium.DivIcon(html=marker_html, icon_size=(size, size),
-                                icon_anchor=(size//2, size//2)),
-            popup=folium.Popup(popup_html, max_width=300),
-            tooltip=f"{loc['name']} — {risk_view}: {shown:.0f}/100",
-        ).add_to(m)
-        heat_points.append([loc["lat"], loc["lon"], shown / 100.0])
-
-    HeatMap(heat_points, radius=42, blur=32, min_opacity=0.3).add_to(
-        folium.FeatureGroup(name="🔥 Heat halo", show=False).add_to(m)
-    )
-    folium.LayerControl(collapsed=True).add_to(m)
-    legend_html = """<div class="climate-legend">
-      <b>🌍 Climate-risk legend</b><br>
-      <span style="font-size:14px;">💧</span> mild &nbsp; <span style="font-size:14px;">🌊</span> high flood<br>
-      <span style="font-size:14px;">🌵</span> mild &nbsp; <span style="font-size:14px;">🔥</span> high drought<br>
-      <span style="font-size:14px;">⚠️</span> very high risk (pulses)
-    </div>"""
-    m.get_root().html.add_child(folium.Element(legend_html))
-
-    map_key = (f"map_{risk_view}_{int(flood_val)}_{int(drought_val)}"
-               f"_{st.session_state['green_infra_pct']}_{st.session_state['urbanization_pct']}"
-               f"_{st.session_state['co2_ppm']}_{int(show_thames)}")
-    st_folium(m, width=None, height=540, returned_objects=[], key=map_key)
-
-    st.caption("Location risk profiles are illustrative for the festival demo, not an official hazard map. "
-               "For authoritative London flood data see the [Environment Agency Flood Map for Planning](https://flood-map-for-planning.service.gov.uk/).")
-
-# ----------------------------------------------------------------------------
-# TAB 3 — Sensitivity (tornado)
+# TAB 2 — Sensitivity (tornado)
 # ----------------------------------------------------------------------------
 with tab_sens:
     st.subheader("🔬 Parameter sensitivity (one-at-a-time, ±20%)")
