@@ -1008,7 +1008,7 @@ with tab_charts:
             horizontal=True,
             label_visibility="collapsed",
         )
-        st.caption("🖱️ Click a marker to splash its trajectory into the charts. ▶ Spin to auto-rotate.")
+        st.caption("🌐 Globe rotates automatically. Click a marker (or use the dropdown below) to zoom in and see its rain/drought signs.")
 
     # ---- Build rotating globe with frames ----
     fig_globe = go.Figure()
@@ -1066,28 +1066,29 @@ with tab_charts:
         name="London hotspots",
     ))
 
-    # ---- SELECTED-LOCATION HIGHLIGHT: glowing ring + annotation ----
+    # ---- SELECTED-LOCATION HIGHLIGHT: glowing ring + visual rain/drought signs ----
     if sel_idx is not None and 0 <= sel_idx < len(globe_data):
         sel_d = globe_data[sel_idx]
-        # Outer pulsing aura
+
+        # Outer aura
         fig_globe.add_trace(go.Scattergeo(
             lon=[sel_d["lon"]], lat=[sel_d["lat"]],
             mode="markers",
-            marker=dict(size=80, color="rgba(251,191,36,0.18)", line=dict(width=0)),
+            marker=dict(size=90, color="rgba(251,191,36,0.16)", line=dict(width=0)),
             hoverinfo="skip", showlegend=False,
         ))
         # Mid ring
         fig_globe.add_trace(go.Scattergeo(
             lon=[sel_d["lon"]], lat=[sel_d["lat"]],
             mode="markers",
-            marker=dict(size=52, color="rgba(251,191,36,0.32)", line=dict(width=0)),
+            marker=dict(size=58, color="rgba(251,191,36,0.30)", line=dict(width=0)),
             hoverinfo="skip", showlegend=False,
         ))
-        # Solid golden ring directly on the marker
+        # Solid golden ring + name label
         fig_globe.add_trace(go.Scattergeo(
             lon=[sel_d["lon"]], lat=[sel_d["lat"]],
             mode="markers+text",
-            marker=dict(size=30, color="rgba(0,0,0,0)",
+            marker=dict(size=32, color="rgba(0,0,0,0)",
                         line=dict(width=4, color="#fbbf24")),
             text=[f"📍 {sel_d['name']}"],
             textposition="top center",
@@ -1095,6 +1096,74 @@ with tab_charts:
                           family="-apple-system, BlinkMacSystemFont, Inter, sans-serif"),
             hoverinfo="skip", showlegend=False,
         ))
+
+        # ============================================================
+        # VISUAL SIGNS — emoji icons radiate around the pin to show
+        # what flood + drought actually look like RIGHT NOW.
+        # Count + size + color of icons reflects severity.
+        # ============================================================
+        fl = sel_d["flood"]
+        dr = sel_d["drought"]
+
+        # ---- FLOOD/RAIN signs (cluster ABOVE the pin, blue-tinted) ----
+        if fl < 25:
+            flood_icons = ["💧"]
+            flood_size = 22
+        elif fl < 50:
+            flood_icons = ["💧", "💧"]
+            flood_size = 26
+        elif fl < 75:
+            flood_icons = ["💧", "🌊", "💧"]
+            flood_size = 30
+        else:
+            flood_icons = ["🌊", "💧", "☔", "🌊"]
+            flood_size = 34
+
+        # Place flood icons in an arc north of the marker
+        n_fl = len(flood_icons)
+        for i, ic in enumerate(flood_icons):
+            # Spread icons across an arc spanning ~80° centred above the pin
+            ang = (i + 1) / (n_fl + 1) * 80 - 40   # -40° to +40°
+            r_lat = 0.030
+            r_lon = 0.045
+            d_lat = sel_d["lat"] + r_lat * np.cos(np.radians(ang))
+            d_lon = sel_d["lon"] + r_lon * np.sin(np.radians(ang))
+            fig_globe.add_trace(go.Scattergeo(
+                lon=[d_lon], lat=[d_lat],
+                mode="text",
+                text=[ic],
+                textfont=dict(size=flood_size, color="#56B4E9"),
+                hoverinfo="skip", showlegend=False,
+            ))
+
+        # ---- DROUGHT/HEAT signs (cluster BELOW the pin, orange-tinted) ----
+        if dr < 25:
+            drought_icons = ["🌱"]
+            drought_size = 22
+        elif dr < 50:
+            drought_icons = ["☀️", "🌵"]
+            drought_size = 26
+        elif dr < 75:
+            drought_icons = ["🔥", "☀️", "🌵"]
+            drought_size = 30
+        else:
+            drought_icons = ["🔥", "🥵", "🔥", "🌵"]
+            drought_size = 34
+
+        n_dr = len(drought_icons)
+        for i, ic in enumerate(drought_icons):
+            ang = (i + 1) / (n_dr + 1) * 80 - 40
+            r_lat = 0.030
+            r_lon = 0.045
+            d_lat = sel_d["lat"] - r_lat * np.cos(np.radians(ang))   # negative = south
+            d_lon = sel_d["lon"] + r_lon * np.sin(np.radians(ang))
+            fig_globe.add_trace(go.Scattergeo(
+                lon=[d_lon], lat=[d_lat],
+                mode="text",
+                text=[ic],
+                textfont=dict(size=drought_size, color="#E69F00"),
+                hoverinfo="skip", showlegend=False,
+            ))
 
     # ---- Frames: 36 steps of full 360° rotation ----
     # When a location is selected, frames keep that location centered (no spinning).
@@ -1117,20 +1186,17 @@ with tab_charts:
         sel_d = globe_data[sel_idx]
         proj_rotation = dict(lon=sel_d["lon"], lat=sel_d["lat"], roll=0)
         proj_scale = 9.0  # zoom in close on the borough
-        # On-globe annotation showing live numbers for the selected location
+        # Tiny corner badge — just the name. Severity is shown by the icons on the globe.
         anns = [dict(
             x=0.02, y=0.97, xref="paper", yref="paper",
             xanchor="left", yanchor="top",
-            text=(f"<b style='color:#fbbf24'>📍 {sel_d['name']}</b>"
-                  f"<br><span style='color:#94a3b8;font-size:10px'>{sel_d.get('borough','—')}</span>"
-                  f"<br>🌊 Flood <b style='color:#56B4E9'>{sel_d['flood']:.0f}</b>"
-                  f" · 🌵 Drought <b style='color:#E69F00'>{sel_d['drought']:.0f}</b>"),
+            text=f"<b style='color:#fbbf24'>📍 {sel_d['name']}</b>",
             showarrow=False,
-            font=dict(size=12, color="#e2e8f0",
+            font=dict(size=13, color="#e2e8f0",
                       family="-apple-system, BlinkMacSystemFont, Inter, sans-serif"),
-            bgcolor="rgba(15,23,42,0.85)",
+            bgcolor="rgba(15,23,42,0.78)",
             bordercolor="rgba(251,191,36,0.45)",
-            borderwidth=1, borderpad=10,
+            borderwidth=1, borderpad=8,
             align="left",
         )]
     else:
@@ -1164,41 +1230,6 @@ with tab_charts:
                         font=dict(color="#e2e8f0", size=12)),
         transition=dict(duration=600, easing="cubic-in-out"),
         showlegend=False,
-        # Play/Pause control overlaid on the globe (only useful when no location picked)
-        updatemenus=[dict(
-            type="buttons",
-            direction="right",
-            x=0.02, y=1.02, xanchor="left", yanchor="bottom",
-            pad=dict(t=4, r=4),
-            bgcolor="rgba(15,23,42,0.85)",
-            bordercolor="rgba(125,211,252,0.4)",
-            borderwidth=1,
-            font=dict(color="#e2e8f0", size=11),
-            showactive=False,
-            visible=(sel_idx is None),
-            buttons=[
-                dict(label="▶ Spin",
-                     method="animate",
-                     args=[None, dict(
-                         frame=dict(duration=180, redraw=True),
-                         fromcurrent=True,
-                         transition=dict(duration=80, easing="linear"),
-                         mode="immediate",
-                     )]),
-                dict(label="⏸ Pause",
-                     method="animate",
-                     args=[[None], dict(
-                         frame=dict(duration=0, redraw=False),
-                         mode="immediate",
-                         transition=dict(duration=0),
-                     )]),
-                dict(label="🎯 Centre London",
-                     method="relayout",
-                     args=[{"geo.projection.rotation.lon": -0.13,
-                            "geo.projection.rotation.lat": 51.5,
-                            "geo.projection.scale": 4.2}]),
-            ],
-        )],
     )
 
     with g_left:
