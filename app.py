@@ -11,6 +11,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
@@ -977,6 +978,9 @@ with tab_charts:
     # SECTION 1 — ROTATING 3D GLOBE + LOCATION SPLASH (above-the-fold)
     # ============================================================
 
+    # Read selected location FIRST so we can recenter the globe before render
+    sel_idx = st.session_state.get("selected_location_idx")
+
     # Compute per-location risks (responds to current sliders)
     globe_view = st.session_state.get("globe_risk_view", "Combined")
     globe_data = []
@@ -1062,25 +1066,84 @@ with tab_charts:
         name="London hotspots",
     ))
 
-    # ---- Frames: 36 steps of full 360° rotation centred on London ----
+    # ---- SELECTED-LOCATION HIGHLIGHT: glowing ring + annotation ----
+    if sel_idx is not None and 0 <= sel_idx < len(globe_data):
+        sel_d = globe_data[sel_idx]
+        # Outer pulsing aura
+        fig_globe.add_trace(go.Scattergeo(
+            lon=[sel_d["lon"]], lat=[sel_d["lat"]],
+            mode="markers",
+            marker=dict(size=80, color="rgba(251,191,36,0.18)", line=dict(width=0)),
+            hoverinfo="skip", showlegend=False,
+        ))
+        # Mid ring
+        fig_globe.add_trace(go.Scattergeo(
+            lon=[sel_d["lon"]], lat=[sel_d["lat"]],
+            mode="markers",
+            marker=dict(size=52, color="rgba(251,191,36,0.32)", line=dict(width=0)),
+            hoverinfo="skip", showlegend=False,
+        ))
+        # Solid golden ring directly on the marker
+        fig_globe.add_trace(go.Scattergeo(
+            lon=[sel_d["lon"]], lat=[sel_d["lat"]],
+            mode="markers+text",
+            marker=dict(size=30, color="rgba(0,0,0,0)",
+                        line=dict(width=4, color="#fbbf24")),
+            text=[f"📍 {sel_d['name']}"],
+            textposition="top center",
+            textfont=dict(size=14, color="#fbbf24",
+                          family="-apple-system, BlinkMacSystemFont, Inter, sans-serif"),
+            hoverinfo="skip", showlegend=False,
+        ))
+
+    # ---- Frames: 36 steps of full 360° rotation ----
+    # When a location is selected, frames keep that location centered (no spinning).
     n_frames = 36
     rotation_frames = []
-    for i in range(n_frames):
-        lon_offset = (i * 360.0 / n_frames) - 180  # sweep -180 → +180
-        rotation_frames.append(go.Frame(
-            name=f"r{i}",
-            layout=dict(geo=dict(projection=dict(rotation=dict(
-                lon=-0.13 + lon_offset, lat=20, roll=0
-            )))),
-        ))
+    if sel_idx is None:
+        # Default global view: spin around the equator showing the whole world
+        for i in range(n_frames):
+            lon_offset = (i * 360.0 / n_frames) - 180  # sweep -180 → +180
+            rotation_frames.append(go.Frame(
+                name=f"r{i}",
+                layout=dict(geo=dict(projection=dict(rotation=dict(
+                    lon=-0.13 + lon_offset, lat=20, roll=0
+                )))),
+            ))
     fig_globe.frames = rotation_frames
+
+    # ---- Layout: rotation + scale depend on whether a location is picked ----
+    if sel_idx is not None:
+        sel_d = globe_data[sel_idx]
+        proj_rotation = dict(lon=sel_d["lon"], lat=sel_d["lat"], roll=0)
+        proj_scale = 9.0  # zoom in close on the borough
+        # On-globe annotation showing live numbers for the selected location
+        anns = [dict(
+            x=0.02, y=0.97, xref="paper", yref="paper",
+            xanchor="left", yanchor="top",
+            text=(f"<b style='color:#fbbf24'>📍 {sel_d['name']}</b>"
+                  f"<br><span style='color:#94a3b8;font-size:10px'>{sel_d.get('borough','—')}</span>"
+                  f"<br>🌊 Flood <b style='color:#56B4E9'>{sel_d['flood']:.0f}</b>"
+                  f" · 🌵 Drought <b style='color:#E69F00'>{sel_d['drought']:.0f}</b>"),
+            showarrow=False,
+            font=dict(size=12, color="#e2e8f0",
+                      family="-apple-system, BlinkMacSystemFont, Inter, sans-serif"),
+            bgcolor="rgba(15,23,42,0.85)",
+            bordercolor="rgba(251,191,36,0.45)",
+            borderwidth=1, borderpad=10,
+            align="left",
+        )]
+    else:
+        proj_rotation = dict(lon=-0.13, lat=20, roll=0)
+        proj_scale = 1.7  # zoomed-out world view
+        anns = []
 
     fig_globe.update_layout(
         geo=dict(
             projection=dict(
                 type="orthographic",
-                rotation=dict(lon=-0.13, lat=51.5, roll=0),
-                scale=1.7,  # zoomed-out so the globe is visible (was 4.2 zoomed on London)
+                rotation=proj_rotation,
+                scale=proj_scale,
             ),
             showland=True, landcolor="rgb(40, 55, 80)",
             showocean=True, oceancolor="rgb(8, 14, 28)",
@@ -1095,12 +1158,13 @@ with tab_charts:
         font=dict(family="-apple-system, BlinkMacSystemFont, Inter, sans-serif", color="#cbd5e1"),
         margin=dict(t=10, b=10, l=0, r=0),
         height=560,
+        annotations=anns,
         hoverlabel=dict(bgcolor="rgba(15,23,42,0.96)",
                         bordercolor="rgba(125,211,252,0.4)",
                         font=dict(color="#e2e8f0", size=12)),
-        transition=dict(duration=500, easing="cubic-in-out"),
+        transition=dict(duration=600, easing="cubic-in-out"),
         showlegend=False,
-        # Play/Pause control overlaid on the globe
+        # Play/Pause control overlaid on the globe (only useful when no location picked)
         updatemenus=[dict(
             type="buttons",
             direction="right",
@@ -1111,6 +1175,7 @@ with tab_charts:
             borderwidth=1,
             font=dict(color="#e2e8f0", size=11),
             showactive=False,
+            visible=(sel_idx is None),
             buttons=[
                 dict(label="▶ Spin",
                      method="animate",
@@ -1132,10 +1197,6 @@ with tab_charts:
                      args=[{"geo.projection.rotation.lon": -0.13,
                             "geo.projection.rotation.lat": 51.5,
                             "geo.projection.scale": 4.2}]),
-                dict(label="🌐 Zoom out",
-                     method="relayout",
-                     args=[{"geo.projection.scale": 1.7,
-                            "geo.projection.rotation.lat": 20}]),
             ],
         )],
     )
@@ -1150,6 +1211,75 @@ with tab_charts:
             config={"displaylogo": False, "scrollZoom": True,
                     "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
         )
+
+        # ---- AUTO-ROTATE: drive Plotly.animate() from a tiny iframe -------
+        # Streamlit doesn't autoplay Plotly animations by default. We inject
+        # a script that walks the parent DOM, finds the geo chart, and calls
+        # Plotly.animate() in a loop. Pauses on hover, resumes on leave.
+        # Disabled when a location is selected (we want it locked on that spot).
+        if sel_idx is None:
+            components.html("""
+            <script>
+            (function() {
+                const win = window.parent;
+                const doc = win.document;
+                let stopped = false, paused = false, started = false;
+                let activeChart = null;
+
+                function findGlobe() {
+                    const charts = doc.querySelectorAll('.js-plotly-plot');
+                    for (const c of charts) {
+                        if (c._fullLayout && c._fullLayout.geo) return c;
+                    }
+                    return null;
+                }
+
+                async function spinLoop(chart) {
+                    const Plotly = win.Plotly;
+                    if (!Plotly || !chart || !chart.frames || chart.frames.length === 0) return;
+                    while (!stopped && doc.contains(chart)) {
+                        if (!paused) {
+                            try {
+                                await Plotly.animate(chart, null, {
+                                    frame: {duration: 220, redraw: true},
+                                    transition: {duration: 60, easing: 'linear'},
+                                    mode: 'immediate',
+                                    fromcurrent: true,
+                                });
+                            } catch (e) {
+                                await new Promise(r => setTimeout(r, 600));
+                            }
+                        } else {
+                            await new Promise(r => setTimeout(r, 200));
+                        }
+                    }
+                }
+
+                function attachHoverPause(chart) {
+                    chart.addEventListener('mouseenter', () => { paused = true; });
+                    chart.addEventListener('mouseleave', () => { paused = false; });
+                }
+
+                function tryStart(attempt) {
+                    attempt = attempt || 0;
+                    if (started || attempt > 80) return;
+                    const chart = findGlobe();
+                    if (chart && chart.frames && chart.frames.length > 0 && win.Plotly) {
+                        started = true;
+                        activeChart = chart;
+                        attachHoverPause(chart);
+                        spinLoop(chart);
+                    } else {
+                        setTimeout(() => tryStart(attempt + 1), 300);
+                    }
+                }
+
+                tryStart();
+                // Stop when this iframe is removed (Streamlit reruns)
+                window.addEventListener('beforeunload', () => { stopped = true; });
+            })();
+            </script>
+            """, height=0)
 
         # Capture click → set selected_location_idx
         def _gp(obj, key, default=None):
