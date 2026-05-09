@@ -36,6 +36,20 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+/* === HIDE STREAMLIT CHROME (Share / Star / GitHub / 3-dot menu / deploy bar) === */
+header[data-testid="stHeader"] { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+[data-testid="stStatusWidget"] { display: none !important; }
+.stAppDeployButton, .stDeployButton { display: none !important; }
+button[kind="header"] { display: none !important; }
+.viewerBadge_container__1QSob, .viewerBadge_link__qRIco { display: none !important; }
+#MainMenu { display: none !important; }
+footer { display: none !important; }
+/* Pull content up to fill the gap left by the hidden header */
+.stApp > header { display: none !important; }
+.block-container { padding-top: 1.0rem !important; }
+
 .stApp {
     background:
         radial-gradient(1200px 600px at 10% -10%, rgba(46,134,222,0.18), transparent 60%),
@@ -1010,355 +1024,253 @@ with tab_charts:
         )
         st.caption("🌐 Globe rotates automatically. Click a marker (or use the dropdown below) to zoom in and see its rain/drought signs.")
 
-    # ---- Build rotating globe with frames ----
-    fig_globe = go.Figure()
-
-    # Pulsing rings for high-risk locations
-    for d in globe_data:
-        if d["shown"] >= 60:
-            fig_globe.add_trace(go.Scattergeo(
-                lon=[d["lon"]], lat=[d["lat"]],
-                mode="markers",
-                marker=dict(
-                    size=int(34 + d["shown"] / 3),
-                    color="rgba(248,113,113,0.20)" if d["shown"] >= 75 else "rgba(56,189,248,0.20)",
-                    line=dict(width=0),
-                ),
-                hoverinfo="skip", showlegend=False,
-            ))
-
-    # Main markers — these are clickable
-    fig_globe.add_trace(go.Scattergeo(
-        lon=[d["lon"] for d in globe_data],
-        lat=[d["lat"] for d in globe_data],
-        text=[d["name"] for d in globe_data],
-        customdata=[[d["flood"], d["drought"], d.get("borough", "—"),
-                     int(d["river"] * 100), int(d["green"] * 100), int(d["urban"] * 100)]
-                    for d in globe_data],
-        mode="markers",
-        marker=dict(
-            size=[max(12, 10 + d["shown"] / 3) for d in globe_data],
-            color=[d["shown"] for d in globe_data],
-            colorscale=[
-                [0.0,  "#10b981"], [0.25, "#34d399"],
-                [0.5,  "#fbbf24"], [0.75, "#fb923c"], [1.0,  "#ef4444"],
-            ],
-            cmin=0, cmax=100,
-            showscale=True,
-            colorbar=dict(
-                title=dict(text=globe_view, font=dict(color="#cbd5e1", size=11)),
-                tickfont=dict(color="#cbd5e1", size=10),
-                thickness=10, len=0.6, x=1.02,
-                bgcolor="rgba(0,0,0,0)",
-            ),
-            line=dict(width=1.5, color="rgba(255,255,255,0.7)"),
-            opacity=0.95,
-        ),
-        hovertemplate=(
-            "<b>%{text}</b><br>"
-            "🏙️ Borough: %{customdata[2]}<br>"
-            "🌊 Flood risk: <b>%{customdata[0]:.0f}</b>/100<br>"
-            "🌵 Drought risk: <b>%{customdata[1]:.0f}</b>/100<br>"
-            "<i>River %{customdata[3]}% · green %{customdata[4]}% · urban %{customdata[5]}%</i>"
-            "<br><span style='color:#fbbf24'>↳ click to splash into charts</span>"
-            "<extra></extra>"
-        ),
-        name="London hotspots",
-    ))
-
-    # ---- SELECTED-LOCATION HIGHLIGHT: glowing ring + visual rain/drought signs ----
+    # ============================================================
+    # GLOBE — rendered as raw Plotly.js inside an iframe so that
+    # auto-rotation actually fires (st.plotly_chart doesn't autoplay
+    # animations and JS injection across iframes is unreliable).
+    # Selection happens via the dropdown in the right column below.
+    # ============================================================
+    sel_loc_payload = None
     if sel_idx is not None and 0 <= sel_idx < len(globe_data):
-        sel_d = globe_data[sel_idx]
+        s = globe_data[sel_idx]
+        sel_loc_payload = {
+            "name": s["name"], "lat": s["lat"], "lon": s["lon"],
+            "flood": float(s["flood"]), "drought": float(s["drought"]),
+            "borough": s.get("borough", "—"),
+        }
 
-        # Outer aura
-        fig_globe.add_trace(go.Scattergeo(
-            lon=[sel_d["lon"]], lat=[sel_d["lat"]],
-            mode="markers",
-            marker=dict(size=90, color="rgba(251,191,36,0.16)", line=dict(width=0)),
-            hoverinfo="skip", showlegend=False,
-        ))
-        # Mid ring
-        fig_globe.add_trace(go.Scattergeo(
-            lon=[sel_d["lon"]], lat=[sel_d["lat"]],
-            mode="markers",
-            marker=dict(size=58, color="rgba(251,191,36,0.30)", line=dict(width=0)),
-            hoverinfo="skip", showlegend=False,
-        ))
-        # Solid golden ring + name label
-        fig_globe.add_trace(go.Scattergeo(
-            lon=[sel_d["lon"]], lat=[sel_d["lat"]],
-            mode="markers+text",
-            marker=dict(size=32, color="rgba(0,0,0,0)",
-                        line=dict(width=4, color="#fbbf24")),
-            text=[f"📍 {sel_d['name']}"],
-            textposition="top center",
-            textfont=dict(size=14, color="#fbbf24",
-                          family="-apple-system, BlinkMacSystemFont, Inter, sans-serif"),
-            hoverinfo="skip", showlegend=False,
-        ))
+    globe_payload = {
+        "points": [{
+            "name": d["name"], "lat": d["lat"], "lon": d["lon"],
+            "shown": float(d["shown"]),
+            "flood": float(d["flood"]), "drought": float(d["drought"]),
+            "borough": d.get("borough", "—"),
+            "river": int(d["river"] * 100), "green": int(d["green"] * 100),
+            "urban": int(d["urban"] * 100),
+        } for d in globe_data],
+        "view": globe_view,
+        "selected": sel_loc_payload,
+    }
 
-        # ============================================================
-        # VISUAL SIGNS — emoji icons radiate around the pin to show
-        # what flood + drought actually look like RIGHT NOW.
-        # Count + size + color of icons reflects severity.
-        # ============================================================
-        fl = sel_d["flood"]
-        dr = sel_d["drought"]
+    globe_html = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+  #globe { width: 100%; height: 580px; background: transparent; }
+  .modebar { display: none !important; }
+</style>
+</head>
+<body>
+<div id="globe"></div>
+<script>
+const PAYLOAD = __PAYLOAD__;
+const points = PAYLOAD.points;
+const sel = PAYLOAD.selected;
+const view = PAYLOAD.view;
 
-        # ---- FLOOD/RAIN signs (cluster ABOVE the pin, blue-tinted) ----
-        if fl < 25:
-            flood_icons = ["💧"]
-            flood_size = 22
-        elif fl < 50:
-            flood_icons = ["💧", "💧"]
-            flood_size = 26
-        elif fl < 75:
-            flood_icons = ["💧", "🌊", "💧"]
-            flood_size = 30
-        else:
-            flood_icons = ["🌊", "💧", "☔", "🌊"]
-            flood_size = 34
+const COLORSCALE = [
+  [0.0, '#10b981'], [0.25, '#34d399'],
+  [0.5, '#fbbf24'], [0.75, '#fb923c'], [1.0, '#ef4444']
+];
 
-        # Place flood icons in an arc north of the marker
-        n_fl = len(flood_icons)
-        for i, ic in enumerate(flood_icons):
-            # Spread icons across an arc spanning ~80° centred above the pin
-            ang = (i + 1) / (n_fl + 1) * 80 - 40   # -40° to +40°
-            r_lat = 0.030
-            r_lon = 0.045
-            d_lat = sel_d["lat"] + r_lat * np.cos(np.radians(ang))
-            d_lon = sel_d["lon"] + r_lon * np.sin(np.radians(ang))
-            fig_globe.add_trace(go.Scattergeo(
-                lon=[d_lon], lat=[d_lat],
-                mode="text",
-                text=[ic],
-                textfont=dict(size=flood_size, color="#56B4E9"),
-                hoverinfo="skip", showlegend=False,
-            ))
+function buildTraces() {
+  const traces = [];
 
-        # ---- DROUGHT/HEAT signs (cluster BELOW the pin, orange-tinted) ----
-        if dr < 25:
-            drought_icons = ["🌱"]
-            drought_size = 22
-        elif dr < 50:
-            drought_icons = ["☀️", "🌵"]
-            drought_size = 26
-        elif dr < 75:
-            drought_icons = ["🔥", "☀️", "🌵"]
-            drought_size = 30
-        else:
-            drought_icons = ["🔥", "🥵", "🔥", "🌵"]
-            drought_size = 34
+  // Pulsing rings behind high-risk markers
+  for (const d of points) {
+    if (d.shown >= 60) {
+      traces.push({
+        type: 'scattergeo',
+        lon: [d.lon], lat: [d.lat],
+        mode: 'markers',
+        marker: {
+          size: Math.round(34 + d.shown / 3),
+          color: d.shown >= 75 ? 'rgba(248,113,113,0.20)' : 'rgba(56,189,248,0.20)',
+          line: {width: 0}
+        },
+        hoverinfo: 'skip', showlegend: false
+      });
+    }
+  }
 
-        n_dr = len(drought_icons)
-        for i, ic in enumerate(drought_icons):
-            ang = (i + 1) / (n_dr + 1) * 80 - 40
-            r_lat = 0.030
-            r_lon = 0.045
-            d_lat = sel_d["lat"] - r_lat * np.cos(np.radians(ang))   # negative = south
-            d_lon = sel_d["lon"] + r_lon * np.sin(np.radians(ang))
-            fig_globe.add_trace(go.Scattergeo(
-                lon=[d_lon], lat=[d_lat],
-                mode="text",
-                text=[ic],
-                textfont=dict(size=drought_size, color="#E69F00"),
-                hoverinfo="skip", showlegend=False,
-            ))
+  // Main markers — clickable
+  traces.push({
+    type: 'scattergeo',
+    lon: points.map(d => d.lon),
+    lat: points.map(d => d.lat),
+    text: points.map(d => d.name),
+    customdata: points.map(d => [d.flood, d.drought, d.borough, d.river, d.green, d.urban]),
+    mode: 'markers',
+    marker: {
+      size: points.map(d => Math.max(12, 10 + d.shown / 3)),
+      color: points.map(d => d.shown),
+      colorscale: COLORSCALE,
+      cmin: 0, cmax: 100,
+      showscale: true,
+      colorbar: {
+        title: {text: view, font: {color: '#cbd5e1', size: 11}},
+        tickfont: {color: '#cbd5e1', size: 10},
+        thickness: 10, len: 0.6, x: 1.02,
+        bgcolor: 'rgba(0,0,0,0)'
+      },
+      line: {width: 1.5, color: 'rgba(255,255,255,0.7)'},
+      opacity: 0.95
+    },
+    hovertemplate:
+      '<b>%{text}</b><br>' +
+      '🏙️ Borough: %{customdata[2]}<br>' +
+      '🌊 Flood risk: <b>%{customdata[0]:.0f}</b>/100<br>' +
+      '🌵 Drought risk: <b>%{customdata[1]:.0f}</b>/100<br>' +
+      '<i>River %{customdata[3]}% · green %{customdata[4]}% · urban %{customdata[5]}%</i>' +
+      '<extra></extra>',
+    name: 'London hotspots'
+  });
 
-    # ---- Frames: 36 steps of full 360° rotation ----
-    # When a location is selected, frames keep that location centered (no spinning).
-    n_frames = 36
-    rotation_frames = []
-    if sel_idx is None:
-        # Default global view: spin around the equator showing the whole world
-        for i in range(n_frames):
-            lon_offset = (i * 360.0 / n_frames) - 180  # sweep -180 → +180
-            rotation_frames.append(go.Frame(
-                name=f"r{i}",
-                layout=dict(geo=dict(projection=dict(rotation=dict(
-                    lon=-0.13 + lon_offset, lat=20, roll=0
-                )))),
-            ))
-    fig_globe.frames = rotation_frames
+  // Visual signs when a location is selected
+  if (sel) {
+    // Outer aura
+    traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat], mode: 'markers',
+      marker: {size: 90, color: 'rgba(251,191,36,0.16)', line: {width: 0}},
+      hoverinfo: 'skip', showlegend: false});
+    // Mid ring
+    traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat], mode: 'markers',
+      marker: {size: 58, color: 'rgba(251,191,36,0.30)', line: {width: 0}},
+      hoverinfo: 'skip', showlegend: false});
+    // Solid ring + name
+    traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat],
+      mode: 'markers+text',
+      marker: {size: 32, color: 'rgba(0,0,0,0)', line: {width: 4, color: '#fbbf24'}},
+      text: ['📍 ' + sel.name],
+      textposition: 'top center',
+      textfont: {size: 14, color: '#fbbf24',
+                 family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
+      hoverinfo: 'skip', showlegend: false});
 
-    # ---- Layout: rotation + scale depend on whether a location is picked ----
-    if sel_idx is not None:
-        sel_d = globe_data[sel_idx]
-        proj_rotation = dict(lon=sel_d["lon"], lat=sel_d["lat"], roll=0)
-        proj_scale = 9.0  # zoom in close on the borough
-        # Tiny corner badge — just the name. Severity is shown by the icons on the globe.
-        anns = [dict(
-            x=0.02, y=0.97, xref="paper", yref="paper",
-            xanchor="left", yanchor="top",
-            text=f"<b style='color:#fbbf24'>📍 {sel_d['name']}</b>",
-            showarrow=False,
-            font=dict(size=13, color="#e2e8f0",
-                      family="-apple-system, BlinkMacSystemFont, Inter, sans-serif"),
-            bgcolor="rgba(15,23,42,0.78)",
-            bordercolor="rgba(251,191,36,0.45)",
-            borderwidth=1, borderpad=8,
-            align="left",
-        )]
-    else:
-        proj_rotation = dict(lon=-0.13, lat=20, roll=0)
-        proj_scale = 1.7  # zoomed-out world view
-        anns = []
+    // Flood icons (arc above)
+    let floodIcons, floodSize;
+    if (sel.flood < 25)        { floodIcons = ['💧'];               floodSize = 22; }
+    else if (sel.flood < 50)   { floodIcons = ['💧','💧'];          floodSize = 26; }
+    else if (sel.flood < 75)   { floodIcons = ['💧','🌊','💧'];     floodSize = 30; }
+    else                       { floodIcons = ['🌊','💧','☔','🌊']; floodSize = 34; }
 
-    fig_globe.update_layout(
-        geo=dict(
-            projection=dict(
-                type="orthographic",
-                rotation=proj_rotation,
-                scale=proj_scale,
-            ),
-            showland=True, landcolor="rgb(40, 55, 80)",
-            showocean=True, oceancolor="rgb(8, 14, 28)",
-            showcountries=True, countrycolor="rgba(255,255,255,0.22)",
-            showcoastlines=True, coastlinecolor="rgba(125,211,252,0.5)",
-            showlakes=True, lakecolor="rgb(12, 22, 44)",
-            showrivers=True, rivercolor="rgba(56,189,248,0.5)",
-            bgcolor="rgba(0,0,0,0)",
-        ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="-apple-system, BlinkMacSystemFont, Inter, sans-serif", color="#cbd5e1"),
-        margin=dict(t=10, b=10, l=0, r=0),
-        height=560,
-        annotations=anns,
-        hoverlabel=dict(bgcolor="rgba(15,23,42,0.96)",
-                        bordercolor="rgba(125,211,252,0.4)",
-                        font=dict(color="#e2e8f0", size=12)),
-        transition=dict(duration=600, easing="cubic-in-out"),
-        showlegend=False,
+    for (let i = 0; i < floodIcons.length; i++) {
+      const ang = (i + 1) / (floodIcons.length + 1) * 80 - 40;  // -40 to +40°
+      const r_lat = 0.030, r_lon = 0.045;
+      const dLat = sel.lat + r_lat * Math.cos(ang * Math.PI / 180);
+      const dLon = sel.lon + r_lon * Math.sin(ang * Math.PI / 180);
+      traces.push({type: 'scattergeo', lon: [dLon], lat: [dLat], mode: 'text',
+        text: [floodIcons[i]],
+        textfont: {size: floodSize, color: '#56B4E9'},
+        hoverinfo: 'skip', showlegend: false});
+    }
+
+    // Drought icons (arc below)
+    let droughtIcons, droughtSize;
+    if (sel.drought < 25)      { droughtIcons = ['🌱'];                  droughtSize = 22; }
+    else if (sel.drought < 50) { droughtIcons = ['☀️','🌵'];             droughtSize = 26; }
+    else if (sel.drought < 75) { droughtIcons = ['🔥','☀️','🌵'];        droughtSize = 30; }
+    else                       { droughtIcons = ['🔥','🥵','🔥','🌵'];   droughtSize = 34; }
+
+    for (let i = 0; i < droughtIcons.length; i++) {
+      const ang = (i + 1) / (droughtIcons.length + 1) * 80 - 40;
+      const r_lat = 0.030, r_lon = 0.045;
+      const dLat = sel.lat - r_lat * Math.cos(ang * Math.PI / 180);
+      const dLon = sel.lon + r_lon * Math.sin(ang * Math.PI / 180);
+      traces.push({type: 'scattergeo', lon: [dLon], lat: [dLat], mode: 'text',
+        text: [droughtIcons[i]],
+        textfont: {size: droughtSize, color: '#E69F00'},
+        hoverinfo: 'skip', showlegend: false});
+    }
+  }
+
+  return traces;
+}
+
+const layout = {
+  geo: {
+    projection: {
+      type: 'orthographic',
+      rotation: sel ? {lon: sel.lon, lat: sel.lat, roll: 0}
+                    : {lon: -0.13, lat: 20, roll: 0},
+      scale: sel ? 9.0 : 1.7
+    },
+    showland: true, landcolor: 'rgb(40, 55, 80)',
+    showocean: true, oceancolor: 'rgb(8, 14, 28)',
+    showcountries: true, countrycolor: 'rgba(255,255,255,0.22)',
+    showcoastlines: true, coastlinecolor: 'rgba(125,211,252,0.5)',
+    showlakes: true, lakecolor: 'rgb(12, 22, 44)',
+    showrivers: true, rivercolor: 'rgba(56,189,248,0.5)',
+    bgcolor: 'rgba(0,0,0,0)'
+  },
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(0,0,0,0)',
+  font: {family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif', color: '#cbd5e1'},
+  margin: {t: 10, b: 10, l: 0, r: 0},
+  height: 580,
+  hoverlabel: {bgcolor: 'rgba(15,23,42,0.96)',
+               bordercolor: 'rgba(125,211,252,0.4)',
+               font: {color: '#e2e8f0', size: 12}},
+  showlegend: false,
+  annotations: sel ? [{
+    x: 0.02, y: 0.97, xref: 'paper', yref: 'paper',
+    xanchor: 'left', yanchor: 'top',
+    text: "<b style='color:#fbbf24'>📍 " + sel.name + "</b>",
+    showarrow: false,
+    font: {size: 13, color: '#e2e8f0',
+           family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
+    bgcolor: 'rgba(15,23,42,0.78)',
+    bordercolor: 'rgba(251,191,36,0.45)',
+    borderwidth: 1, borderpad: 8,
+    align: 'left'
+  }] : []
+};
+
+const config = {
+  displaylogo: false,
+  displayModeBar: false,
+  responsive: true,
+  scrollZoom: true,
+  modeBarButtonsToRemove: ['lasso2d', 'select2d']
+};
+
+const gd = document.getElementById('globe');
+Plotly.newPlot(gd, buildTraces(), layout, config).then(() => {
+  // ====== AUTO-ROTATION ======
+  // Only when no location is selected — otherwise we want it locked.
+  if (!sel) {
+    let rotLon = -180;
+    let paused = false;
+    gd.addEventListener('mouseenter', () => { paused = true; });
+    gd.addEventListener('mouseleave', () => { paused = false; });
+    setInterval(() => {
+      if (paused) return;
+      rotLon = (rotLon + 1.6) % 360;
+      const lon = rotLon > 180 ? rotLon - 360 : rotLon;
+      Plotly.relayout(gd, {
+        'geo.projection.rotation.lon': lon,
+        'geo.projection.rotation.lat': 20
+      });
+    }, 50);
+  }
+});
+</script>
+</body>
+</html>
+"""
+
+    # Inject payload as JSON literal; escape "</" to avoid </script> injection
+    globe_html_filled = globe_html.replace(
+        "__PAYLOAD__",
+        json.dumps(globe_payload).replace("</", "<\\/")
     )
 
     with g_left:
-        # `on_select="rerun"` returns event data — use it to set selected_location
-        event = st.plotly_chart(
-            fig_globe,
-            use_container_width=True,
-            key="globe_chart",
-            on_select="rerun",
-            config={"displaylogo": False, "scrollZoom": True,
-                    "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
-        )
+        components.html(globe_html_filled, height=600, scrolling=False)
 
-        # ---- AUTO-ROTATE: drive Plotly.animate() from a tiny iframe -------
-        # Streamlit doesn't autoplay Plotly animations by default. We inject
-        # a script that walks the parent DOM, finds the geo chart, and calls
-        # Plotly.animate() in a loop. Pauses on hover, resumes on leave.
-        # Disabled when a location is selected (we want it locked on that spot).
-        if sel_idx is None:
-            components.html("""
-            <script>
-            (function() {
-                const win = window.parent;
-                const doc = win.document;
-                let stopped = false, paused = false, started = false;
-                let activeChart = null;
-
-                function findGlobe() {
-                    const charts = doc.querySelectorAll('.js-plotly-plot');
-                    for (const c of charts) {
-                        if (c._fullLayout && c._fullLayout.geo) return c;
-                    }
-                    return null;
-                }
-
-                async function spinLoop(chart) {
-                    const Plotly = win.Plotly;
-                    if (!Plotly || !chart || !chart.frames || chart.frames.length === 0) return;
-                    while (!stopped && doc.contains(chart)) {
-                        if (!paused) {
-                            try {
-                                await Plotly.animate(chart, null, {
-                                    frame: {duration: 220, redraw: true},
-                                    transition: {duration: 60, easing: 'linear'},
-                                    mode: 'immediate',
-                                    fromcurrent: true,
-                                });
-                            } catch (e) {
-                                await new Promise(r => setTimeout(r, 600));
-                            }
-                        } else {
-                            await new Promise(r => setTimeout(r, 200));
-                        }
-                    }
-                }
-
-                function attachHoverPause(chart) {
-                    chart.addEventListener('mouseenter', () => { paused = true; });
-                    chart.addEventListener('mouseleave', () => { paused = false; });
-                }
-
-                function tryStart(attempt) {
-                    attempt = attempt || 0;
-                    if (started || attempt > 80) return;
-                    const chart = findGlobe();
-                    if (chart && chart.frames && chart.frames.length > 0 && win.Plotly) {
-                        started = true;
-                        activeChart = chart;
-                        attachHoverPause(chart);
-                        spinLoop(chart);
-                    } else {
-                        setTimeout(() => tryStart(attempt + 1), 300);
-                    }
-                }
-
-                tryStart();
-                // Stop when this iframe is removed (Streamlit reruns)
-                window.addEventListener('beforeunload', () => { stopped = true; });
-            })();
-            </script>
-            """, height=0)
-
-        # Capture click → set selected_location_idx
-        def _gp(obj, key, default=None):
-            """Get attribute or item from Streamlit AttributeDict / plain dict."""
-            if obj is None:
-                return default
-            try:
-                return obj[key]
-            except (KeyError, TypeError):
-                pass
-            return getattr(obj, key, default)
-
-        sel_pts = []
-        if event is not None:
-            selection = _gp(event, "selection")
-            if selection is not None:
-                sel_pts = _gp(selection, "points", []) or []
-
-        if sel_pts:
-            # Prefer points carrying customdata (main marker trace, not the rings)
-            best = None
-            for p in sel_pts:
-                if _gp(p, "customdata"):
-                    best = p
-                    break
-            if best is None:
-                best = sel_pts[0]
-
-            # Match by name (most reliable across plotly/streamlit versions)
-            picked_name = _gp(best, "text") or _gp(best, "hovertext")
-            picked_idx = None
-            if picked_name:
-                for i, loc in enumerate(LONDON_LOCATIONS):
-                    if loc["name"] == picked_name:
-                        picked_idx = i
-                        break
-            # Fallback: match by lat/lon proximity
-            if picked_idx is None:
-                plat, plon = _gp(best, "lat"), _gp(best, "lon")
-                if plat is not None and plon is not None:
-                    for i, loc in enumerate(LONDON_LOCATIONS):
-                        if abs(loc["lat"] - plat) < 1e-3 and abs(loc["lon"] - plon) < 1e-3:
-                            picked_idx = i
-                            break
-
-            if picked_idx is not None and st.session_state.get("selected_location_idx") != picked_idx:
-                st.session_state["selected_location_idx"] = picked_idx
-                st.rerun()
 
     # ---- Right column: location splash card ----
     sel_idx = st.session_state.get("selected_location_idx")
