@@ -278,6 +278,115 @@ section[data-testid="stSidebar"] .stToggle {
 .slim-tagline .ts2 { color: #fbbf24; font-weight: 600; }
 .slim-tagline .ts3 { color: #f87171; font-weight: 700; }
 .slim-tagline .sep { color: rgba(255,255,255,0.25); margin: 0 8px; }
+
+/* ================================================================
+   COMPACT METRIC STRIP — replaces tall cards so globe fits above-fold
+   ================================================================ */
+.metric-strip {
+    display: flex;
+    gap: 10px;
+    margin: 4px 0 12px;
+    flex-wrap: wrap;
+}
+.metric-pill {
+    flex: 1;
+    min-width: 180px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+    backdrop-filter: blur(6px);
+    animation: fadeInUp 0.55s cubic-bezier(0.2,0.8,0.2,1) both;
+}
+.metric-pill:nth-of-type(2) { animation-delay: 0.08s; }
+.metric-pill:nth-of-type(3) { animation-delay: 0.16s; }
+.metric-pill .mp-icon { font-size: 22px; line-height: 1; opacity: 0.95; }
+.metric-pill .mp-body { display: flex; flex-direction: column; line-height: 1.05; }
+.metric-pill .mp-label { font-size: 10px; color: #94a3b8; letter-spacing: 0.1em; text-transform: uppercase; }
+.metric-pill .mp-value { font-size: 22px; font-weight: 800; margin-top: 2px; }
+.metric-pill .mp-trend { font-size: 11px; color: #94a3b8; }
+
+/* ================================================================
+   PRESET CHIPS — top-of-sidebar one-click scenarios
+   ================================================================ */
+.preset-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin: 4px 0 10px;
+}
+section[data-testid="stSidebar"] .preset-row .stButton button {
+    width: 100%;
+    padding: 8px 4px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+    border-radius: 999px !important;
+    border: 1px solid rgba(125,211,252,0.25) !important;
+    background: rgba(125,211,252,0.06) !important;
+    color: #e2e8f0 !important;
+}
+section[data-testid="stSidebar"] .preset-row .stButton button:hover {
+    background: linear-gradient(135deg, rgba(125,211,252,0.18), rgba(251,191,36,0.18)) !important;
+    border-color: rgba(251,191,36,0.4) !important;
+}
+
+/* ================================================================
+   LOCATION SPLASH CARD — appears next to globe when a marker clicked
+   ================================================================ */
+.loc-splash {
+    border-radius: 14px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(46,134,222,0.16), rgba(238,90,36,0.10));
+    border: 1px solid rgba(125,211,252,0.30);
+    box-shadow: 0 6px 22px rgba(0,0,0,0.30);
+    margin-bottom: 10px;
+    animation: splashIn 0.5s cubic-bezier(0.2,0.8,0.2,1);
+}
+@keyframes splashIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.loc-splash .ls-eyebrow { font-size: 10px; letter-spacing: 0.18em; color: #fbbf24; text-transform: uppercase; }
+.loc-splash .ls-name { font-size: 20px; font-weight: 800; margin: 2px 0 4px; color: #e2e8f0; }
+.loc-splash .ls-borough { font-size: 12px; color: #94a3b8; }
+.loc-splash .ls-row {
+    display: flex;
+    gap: 14px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+.loc-splash .ls-stat { flex: 1; }
+.loc-splash .ls-stat .lsv { font-size: 18px; font-weight: 800; }
+.loc-splash .ls-stat .lsl { font-size: 10px; color: #94a3b8; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px;}
+
+/* ================================================================
+   SIDEBAR — expander polish + sparkline tightness
+   ================================================================ */
+section[data-testid="stSidebar"] .streamlit-expanderHeader,
+section[data-testid="stSidebar"] details summary {
+    background: rgba(125,211,252,0.04);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-weight: 700;
+    color: #e2e8f0;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+section[data-testid="stSidebar"] details[open] summary {
+    border-color: rgba(125,211,252,0.35);
+}
+.spark-row { margin: -4px 0 6px; padding: 0 4px; }
+
+/* Tighten block container — globe fits above the fold */
+.block-container {
+    padding-top: 1.0rem !important;
+    padding-bottom: 2rem !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -527,81 +636,167 @@ def pretty_params(p: dict) -> str:
 
 
 # ============================================================================
-# Sidebar
+# Sidebar — presets first, sliders grouped, advanced collapsed
 # ============================================================================
+
+# Preset chips: one-click scenarios for casual users (no slider fiddling)
+PRESET_CHIPS = {
+    "🌱 Net-zero": {
+        "co2_ppm": 380, "rainfall_change_pct": 5,
+        "green_infra_pct": 70, "urbanization_pct": 35,
+    },
+    "🔥 Worst-case": {
+        "co2_ppm": 750, "rainfall_change_pct": 25,
+        "green_infra_pct": 10, "urbanization_pct": 75,
+    },
+    "🌳 Adaptation": {
+        "co2_ppm": 500, "rainfall_change_pct": 12,
+        "green_infra_pct": 80, "urbanization_pct": 50,
+    },
+}
+
+
+def _spark(values, color="#7dd3fc", height=28):
+    """Tiny inline sparkline showing how a parameter behaves over the horizon."""
+    fig = go.Figure(go.Scatter(
+        y=list(values), mode="lines",
+        line=dict(color=color, width=1.6, shape="spline"),
+        fill="tozeroy", fillcolor=f"{color}22",
+        hoverinfo="skip",
+    ))
+    fig.update_layout(
+        margin=dict(t=0, b=0, l=0, r=0),
+        height=height,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(visible=False), yaxis=dict(visible=False),
+        showlegend=False,
+    )
+    return fig
+
+
 with st.sidebar:
     st.header("Controls")
 
-    if st.button("🔄 Reset to Default"):
-        for k in list(DEFAULTS.keys()):
-            st.session_state.pop(k, None)
-        for k, v in DEFAULTS.items():
-            st.session_state[k] = v
-        st.rerun()
+    # ---- 1. PRESET CHIPS — fast scenarios at the very top ---------
+    st.markdown("**🎛️ Quick presets**")
+    st.markdown('<div class="preset-row">', unsafe_allow_html=True)
+    pcol1, pcol2, pcol3 = st.columns(3)
+    preset_names = list(PRESET_CHIPS.keys())
+    for col, name in zip([pcol1, pcol2, pcol3], preset_names):
+        with col:
+            if st.button(name, key=f"preset_{name}", use_container_width=True):
+                for k, v in PRESET_CHIPS[name].items():
+                    st.session_state[k] = v
+                st.session_state["challenge_won"] = False
+                st.session_state.pop("selected_location_idx", None)
+                st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.subheader("📚 Scenario library")
-    sl_keys = list(SCENARIO_LIBRARY.keys())
-    chosen = st.selectbox("Pick an IPCC-anchored or London-policy scenario:",
-                          ["— custom —"] + sl_keys, index=0, key="scenario_pick")
-    if chosen != "— custom —" and st.button("Apply scenario"):
-        for k, v in SCENARIO_LIBRARY[chosen].items():
-            st.session_state[k] = v
-        st.session_state["challenge_won"] = False
-        st.rerun()
+    # ---- 2. CLIMATE INPUTS — expander group --------------------
+    with st.expander("🌡️ Climate inputs", expanded=True):
+        st.radio("Mode", ["Standard", "Kids (simple)"],
+                 key="mode", horizontal=True, label_visibility="collapsed")
+        st.slider("⏱️ Horizon (years)", 20, 120, step=5, key="years")
+        st.slider("💨 CO₂ (ppm)", 280, 900, step=10, key="co2_ppm")
+        # CO2 sparkline — projected ramp up under current settings
+        _co2_now = int(st.session_state["co2_ppm"])
+        _co2_path = np.linspace(420, _co2_now, 40)
+        st.markdown('<div class="spark-row">', unsafe_allow_html=True)
+        st.plotly_chart(_spark(_co2_path, "#fbbf24"), use_container_width=True,
+                        config={"displayModeBar": False, "staticPlot": True},
+                        key="spark_co2")
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.slider("☔ Rainfall change (%)", -30, 50, step=1, key="rainfall_change_pct")
 
-    st.divider()
+    # ---- 3. LONDON / INFRASTRUCTURE inputs ---------------------
+    with st.expander("🏙️ London infrastructure", expanded=True):
+        if st.session_state["mode"] == "Kids (simple)":
+            st.slider("🌳 Green solutions (%)", 0, 100, step=5, key="green_infra_pct")
+            st.session_state["urbanization_pct"] = 45
+            st.caption("Kids mode hides urbanization for faster exploration.")
+        else:
+            st.slider("🌳 Green infrastructure (%)", 0, 100, step=5, key="green_infra_pct")
+            # Quick visual cue for green vs urban balance
+            _g = int(st.session_state["green_infra_pct"])
+            _u = int(st.session_state.get("urbanization_pct", 40))
+            st.markdown(
+                f"<div style='display:flex;height:6px;border-radius:99px;overflow:hidden;"
+                f"margin:-4px 0 6px;background:rgba(255,255,255,0.06);'>"
+                f"<div style='flex:{_g};background:linear-gradient(90deg,#10b981,#34d399);'></div>"
+                f"<div style='flex:{_u};background:linear-gradient(90deg,#fb923c,#ef4444);'></div>"
+                f"<div style='flex:{max(0, 100 - _g - _u)};background:transparent;'></div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            st.slider("🏗️ Urbanization (%)", 0, 100, step=5, key="urbanization_pct")
 
-    st.radio("Mode", ["Standard", "Kids (simple)"], key="mode")
-    st.slider("Simulation horizon (years)", 20, 120, step=5, key="years")
-    st.slider("CO₂ concentration (ppm)", 280, 900, step=10, key="co2_ppm")
-    st.slider("Rainfall change (%)", -30, 50, step=1, key="rainfall_change_pct")
+    # ---- 4. SCENARIO LIBRARY (compact) -------------------------
+    with st.expander("📚 Scenario library", expanded=False):
+        sl_keys = list(SCENARIO_LIBRARY.keys())
+        chosen = st.selectbox(
+            "IPCC-anchored or London-policy scenario:",
+            ["— custom —"] + sl_keys, index=0, key="scenario_pick",
+        )
+        sa1, sa2 = st.columns([1, 1])
+        with sa1:
+            if st.button("Apply", use_container_width=True,
+                         disabled=(chosen == "— custom —"), key="apply_lib"):
+                for k, v in SCENARIO_LIBRARY[chosen].items():
+                    st.session_state[k] = v
+                st.session_state["challenge_won"] = False
+                st.rerun()
+        with sa2:
+            if st.button("🔄 Reset", use_container_width=True, key="reset_lib"):
+                for k in list(DEFAULTS.keys()):
+                    st.session_state.pop(k, None)
+                for k, v in DEFAULTS.items():
+                    st.session_state[k] = v
+                st.session_state.pop("selected_location_idx", None)
+                st.rerun()
 
-    if st.session_state["mode"] == "Kids (simple)":
-        st.slider("Green solutions (%)", 0, 100, step=5, key="green_infra_pct")
-        st.session_state["urbanization_pct"] = 45
-        st.info("Kids mode uses fewer controls for faster exploration.")
-    else:
-        st.slider("Green infrastructure (%)", 0, 100, step=5, key="green_infra_pct")
-        st.slider("Urbanization / imperviousness (%)", 0, 100, step=5, key="urbanization_pct")
+    # ---- 5. ADVANCED — display + challenge + compare + AI key ---
+    with st.expander("🔧 Advanced", expanded=False):
+        st.markdown("**🔬 Display options**")
+        st.toggle("5–95% uncertainty bands", key="show_uncertainty")
+        st.toggle("IPCC SSP reference scenarios", key="show_ssp")
+        st.toggle("HadCRUT5 historical splice", key="show_history")
+        st.toggle("Researcher mode", key="researcher_mode",
+                  help="Shows additional diagnostics in the Charts tab.")
 
-    st.divider()
+        st.divider()
+        st.markdown("**🎯 Challenge mode**")
+        st.toggle("Enable challenge", key="challenge_on")
+        diff = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], key="difficulty_choice")
+        target_flood = int(DIFFICULTY_TARGETS[diff]["target_flood"])
+        target_drought = int(DIFFICULTY_TARGETS[diff]["target_drought"])
+        st.caption(f"Targets: Flood ≤ {target_flood} · Drought ≤ {target_drought}")
+        if st.button("🏆 Reset calibration"):
+            st.session_state["challenge_won"] = False
+            st.rerun()
 
-    st.subheader("🔬 Display options")
-    st.toggle("Show 5–95% uncertainty bands", key="show_uncertainty")
-    st.toggle("Overlay IPCC SSP reference scenarios", key="show_ssp")
-    st.toggle("Splice in HadCRUT5 historical record", key="show_history")
-    st.toggle("Researcher mode (advanced)", key="researcher_mode",
-              help="Shows additional diagnostics in the Charts tab.")
+        st.divider()
+        st.markdown("**🧪 Scenario comparison**")
+        st.toggle("Enable A/B comparison", key="compare_on")
 
-    st.divider()
+        st.divider()
+        st.markdown("**🤖 AI assistant key**")
+        api_key_input = st.text_input(
+            "Anthropic API key (optional)", type="password",
+            value=os.environ.get("ANTHROPIC_API_KEY", ""),
+            help="Leave blank to use the offline brain.",
+        )
+        if api_key_input:
+            os.environ["ANTHROPIC_API_KEY"] = api_key_input
 
-    st.subheader("🎯 Challenge mode")
-    st.toggle("Enable challenge", key="challenge_on")
-    if st.button("🏆 Reset challenge calibration"):
-        st.session_state["challenge_won"] = False
-        st.session_state.pop("difficulty_choice", None)
-        st.rerun()
-    diff = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], key="difficulty_choice")
-    target_flood = int(DIFFICULTY_TARGETS[diff]["target_flood"])
-    target_drought = int(DIFFICULTY_TARGETS[diff]["target_drought"])
-    st.caption(f"Targets: Flood ≤ {target_flood} | Drought ≤ {target_drought}")
-
-    st.divider()
-
-    st.subheader("🧪 Scenario comparison")
-    st.toggle("Enable comparison", key="compare_on")
-
-    st.divider()
-
-    st.subheader("🤖 AI assistant")
-    st.caption("Optional: paste an Anthropic API key to enable streaming chat.")
-    api_key_input = st.text_input(
-        "Anthropic API key (optional)", type="password",
-        value=os.environ.get("ANTHROPIC_API_KEY", ""),
-        help="Stored only in this session. Leave blank to use the offline brain.",
-    )
-    if api_key_input:
-        os.environ["ANTHROPIC_API_KEY"] = api_key_input
+    # Make targets visible outside the expander too
+    if not st.session_state.get("challenge_on", False):
+        target_flood = int(DIFFICULTY_TARGETS[
+            st.session_state.get("difficulty_choice", "Medium")
+        ]["target_flood"])
+        target_drought = int(DIFFICULTY_TARGETS[
+            st.session_state.get("difficulty_choice", "Medium")
+        ]["target_drought"])
 
 # ============================================================================
 # Run simulation
@@ -696,29 +891,41 @@ else:
     mood_class = "mood-drought"
 st.markdown(f'<div class="mood-layer {mood_class}"></div>', unsafe_allow_html=True)
 
-mc1, mc2, mc3 = st.columns(3)
-with mc1:
-    st.markdown(f"""
-    <div class="metric-card">
-      <div class="metric-label">🌡️ End-of-horizon warming</div>
-      <div class="metric-value {severity_class(temp_val,'temp')}">{temp_val:.2f} °C</div>
-      <div class="metric-trend">{'Paris-aligned' if temp_val<2 else 'Above Paris target'}</div>
-    </div>""", unsafe_allow_html=True)
-with mc2:
-    st.markdown(f"""
-    <div class="metric-card">
-      <div class="metric-label">🌊 Flood risk</div>
-      <div class="metric-value {severity_class(flood_val)}">{flood_val:.0f} <span style="font-size:16px;color:#94a3b8;">/ 100</span></div>
-      <div class="metric-trend">{'Low' if flood_val<25 else 'Moderate' if flood_val<50 else 'High' if flood_val<75 else 'Very high'}</div>
-    </div>""", unsafe_allow_html=True)
-with mc3:
-    st.markdown(f"""
-    <div class="metric-card">
-      <div class="metric-label">🌵 Drought risk</div>
-      <div class="metric-value {severity_class(drought_val)}">{drought_val:.0f} <span style="font-size:16px;color:#94a3b8;">/ 100</span></div>
-      <div class="metric-trend">{'Low' if drought_val<25 else 'Moderate' if drought_val<50 else 'High' if drought_val<75 else 'Very high'}</div>
-    </div>""", unsafe_allow_html=True)
-st.write("")
+# --- Compact metric strip — small footprint so the globe fits above the fold ---
+_temp_label = 'Paris-aligned' if temp_val < 2 else 'Above Paris target'
+_flood_label = ('Low' if flood_val < 25 else 'Moderate' if flood_val < 50
+                else 'High' if flood_val < 75 else 'Very high')
+_drought_label = ('Low' if drought_val < 25 else 'Moderate' if drought_val < 50
+                  else 'High' if drought_val < 75 else 'Very high')
+
+st.markdown(f"""
+<div class="metric-strip">
+  <div class="metric-pill">
+    <div class="mp-icon">🌡️</div>
+    <div class="mp-body">
+      <div class="mp-label">End-of-horizon warming</div>
+      <div class="mp-value {severity_class(temp_val, 'temp')}">{temp_val:.2f} °C</div>
+      <div class="mp-trend">{_temp_label}</div>
+    </div>
+  </div>
+  <div class="metric-pill">
+    <div class="mp-icon">🌊</div>
+    <div class="mp-body">
+      <div class="mp-label">Flood risk</div>
+      <div class="mp-value {severity_class(flood_val)}">{flood_val:.0f}<span style="font-size:13px;color:#94a3b8;"> / 100</span></div>
+      <div class="mp-trend">{_flood_label}</div>
+    </div>
+  </div>
+  <div class="metric-pill">
+    <div class="mp-icon">🌵</div>
+    <div class="mp-body">
+      <div class="mp-label">Drought risk</div>
+      <div class="mp-value {severity_class(drought_val)}">{drought_val:.0f}<span style="font-size:13px;color:#94a3b8;"> / 100</span></div>
+      <div class="mp-trend">{_drought_label}</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================================================
 # Tabs
@@ -757,14 +964,319 @@ with tab_charts:
             transition=dict(duration=400, easing="cubic-in-out"),
         )
 
+    # ============================================================
+    # SECTION 1 — ROTATING 3D GLOBE + LOCATION SPLASH (above-the-fold)
+    # ============================================================
+
+    # Compute per-location risks (responds to current sliders)
+    globe_view = st.session_state.get("globe_risk_view", "Combined")
+    globe_data = []
+    for loc in LONDON_LOCATIONS:
+        fl, dr = local_risk(loc, flood_val, drought_val,
+                            st.session_state["green_infra_pct"],
+                            st.session_state["urbanization_pct"])
+        if globe_view == "Flood risk":
+            shown = fl
+        elif globe_view == "Drought risk":
+            shown = dr
+        else:
+            shown = (fl + dr) / 2
+        globe_data.append({**loc, "flood": fl, "drought": dr, "shown": shown})
+
+    # ---- Layout: Globe (left, 2/3) + Splash card (right, 1/3) ----
+    g_left, g_right = st.columns([2, 1], gap="medium")
+
+    with g_right:
+        st.markdown("### 🌍 3D London globe")
+        globe_view = st.radio(
+            "Risk shown",
+            ["Combined", "Flood risk", "Drought risk"],
+            key="globe_risk_view",
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+        st.caption("🖱️ Click a marker to splash its trajectory into the charts. ▶ Spin to auto-rotate.")
+
+    # ---- Build rotating globe with frames ----
+    fig_globe = go.Figure()
+
+    # Pulsing rings for high-risk locations
+    for d in globe_data:
+        if d["shown"] >= 60:
+            fig_globe.add_trace(go.Scattergeo(
+                lon=[d["lon"]], lat=[d["lat"]],
+                mode="markers",
+                marker=dict(
+                    size=int(34 + d["shown"] / 3),
+                    color="rgba(248,113,113,0.20)" if d["shown"] >= 75 else "rgba(56,189,248,0.20)",
+                    line=dict(width=0),
+                ),
+                hoverinfo="skip", showlegend=False,
+            ))
+
+    # Main markers — these are clickable
+    fig_globe.add_trace(go.Scattergeo(
+        lon=[d["lon"] for d in globe_data],
+        lat=[d["lat"] for d in globe_data],
+        text=[d["name"] for d in globe_data],
+        customdata=[[d["flood"], d["drought"], d.get("borough", "—"),
+                     int(d["river"] * 100), int(d["green"] * 100), int(d["urban"] * 100)]
+                    for d in globe_data],
+        mode="markers",
+        marker=dict(
+            size=[max(12, 10 + d["shown"] / 3) for d in globe_data],
+            color=[d["shown"] for d in globe_data],
+            colorscale=[
+                [0.0,  "#10b981"], [0.25, "#34d399"],
+                [0.5,  "#fbbf24"], [0.75, "#fb923c"], [1.0,  "#ef4444"],
+            ],
+            cmin=0, cmax=100,
+            showscale=True,
+            colorbar=dict(
+                title=dict(text=globe_view, font=dict(color="#cbd5e1", size=11)),
+                tickfont=dict(color="#cbd5e1", size=10),
+                thickness=10, len=0.6, x=1.02,
+                bgcolor="rgba(0,0,0,0)",
+            ),
+            line=dict(width=1.5, color="rgba(255,255,255,0.7)"),
+            opacity=0.95,
+        ),
+        hovertemplate=(
+            "<b>%{text}</b><br>"
+            "🏙️ Borough: %{customdata[2]}<br>"
+            "🌊 Flood risk: <b>%{customdata[0]:.0f}</b>/100<br>"
+            "🌵 Drought risk: <b>%{customdata[1]:.0f}</b>/100<br>"
+            "<i>River %{customdata[3]}% · green %{customdata[4]}% · urban %{customdata[5]}%</i>"
+            "<br><span style='color:#fbbf24'>↳ click to splash into charts</span>"
+            "<extra></extra>"
+        ),
+        name="London hotspots",
+    ))
+
+    # ---- Frames: 36 steps of full 360° rotation centred on London ----
+    n_frames = 36
+    rotation_frames = []
+    for i in range(n_frames):
+        lon_offset = (i * 360.0 / n_frames) - 180  # sweep -180 → +180
+        rotation_frames.append(go.Frame(
+            name=f"r{i}",
+            layout=dict(geo=dict(projection=dict(rotation=dict(
+                lon=-0.13 + lon_offset, lat=20, roll=0
+            )))),
+        ))
+    fig_globe.frames = rotation_frames
+
+    fig_globe.update_layout(
+        geo=dict(
+            projection=dict(
+                type="orthographic",
+                rotation=dict(lon=-0.13, lat=51.5, roll=0),
+                scale=1.7,  # zoomed-out so the globe is visible (was 4.2 zoomed on London)
+            ),
+            showland=True, landcolor="rgb(40, 55, 80)",
+            showocean=True, oceancolor="rgb(8, 14, 28)",
+            showcountries=True, countrycolor="rgba(255,255,255,0.22)",
+            showcoastlines=True, coastlinecolor="rgba(125,211,252,0.5)",
+            showlakes=True, lakecolor="rgb(12, 22, 44)",
+            showrivers=True, rivercolor="rgba(56,189,248,0.5)",
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="-apple-system, BlinkMacSystemFont, Inter, sans-serif", color="#cbd5e1"),
+        margin=dict(t=10, b=10, l=0, r=0),
+        height=560,
+        hoverlabel=dict(bgcolor="rgba(15,23,42,0.96)",
+                        bordercolor="rgba(125,211,252,0.4)",
+                        font=dict(color="#e2e8f0", size=12)),
+        transition=dict(duration=500, easing="cubic-in-out"),
+        showlegend=False,
+        # Play/Pause control overlaid on the globe
+        updatemenus=[dict(
+            type="buttons",
+            direction="right",
+            x=0.02, y=1.02, xanchor="left", yanchor="bottom",
+            pad=dict(t=4, r=4),
+            bgcolor="rgba(15,23,42,0.85)",
+            bordercolor="rgba(125,211,252,0.4)",
+            borderwidth=1,
+            font=dict(color="#e2e8f0", size=11),
+            showactive=False,
+            buttons=[
+                dict(label="▶ Spin",
+                     method="animate",
+                     args=[None, dict(
+                         frame=dict(duration=180, redraw=True),
+                         fromcurrent=True,
+                         transition=dict(duration=80, easing="linear"),
+                         mode="immediate",
+                     )]),
+                dict(label="⏸ Pause",
+                     method="animate",
+                     args=[[None], dict(
+                         frame=dict(duration=0, redraw=False),
+                         mode="immediate",
+                         transition=dict(duration=0),
+                     )]),
+                dict(label="🎯 Centre London",
+                     method="relayout",
+                     args=[{"geo.projection.rotation.lon": -0.13,
+                            "geo.projection.rotation.lat": 51.5,
+                            "geo.projection.scale": 4.2}]),
+                dict(label="🌐 Zoom out",
+                     method="relayout",
+                     args=[{"geo.projection.scale": 1.7,
+                            "geo.projection.rotation.lat": 20}]),
+            ],
+        )],
+    )
+
+    with g_left:
+        # `on_select="rerun"` returns event data — use it to set selected_location
+        event = st.plotly_chart(
+            fig_globe,
+            use_container_width=True,
+            key="globe_chart",
+            on_select="rerun",
+            config={"displaylogo": False, "scrollZoom": True,
+                    "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
+        )
+
+        # Capture click → set selected_location_idx
+        def _gp(obj, key, default=None):
+            """Get attribute or item from Streamlit AttributeDict / plain dict."""
+            if obj is None:
+                return default
+            try:
+                return obj[key]
+            except (KeyError, TypeError):
+                pass
+            return getattr(obj, key, default)
+
+        sel_pts = []
+        if event is not None:
+            selection = _gp(event, "selection")
+            if selection is not None:
+                sel_pts = _gp(selection, "points", []) or []
+
+        if sel_pts:
+            # Prefer points carrying customdata (main marker trace, not the rings)
+            best = None
+            for p in sel_pts:
+                if _gp(p, "customdata"):
+                    best = p
+                    break
+            if best is None:
+                best = sel_pts[0]
+
+            # Match by name (most reliable across plotly/streamlit versions)
+            picked_name = _gp(best, "text") or _gp(best, "hovertext")
+            picked_idx = None
+            if picked_name:
+                for i, loc in enumerate(LONDON_LOCATIONS):
+                    if loc["name"] == picked_name:
+                        picked_idx = i
+                        break
+            # Fallback: match by lat/lon proximity
+            if picked_idx is None:
+                plat, plon = _gp(best, "lat"), _gp(best, "lon")
+                if plat is not None and plon is not None:
+                    for i, loc in enumerate(LONDON_LOCATIONS):
+                        if abs(loc["lat"] - plat) < 1e-3 and abs(loc["lon"] - plon) < 1e-3:
+                            picked_idx = i
+                            break
+
+            if picked_idx is not None and st.session_state.get("selected_location_idx") != picked_idx:
+                st.session_state["selected_location_idx"] = picked_idx
+                st.rerun()
+
+    # ---- Right column: location splash card ----
+    sel_idx = st.session_state.get("selected_location_idx")
+
+    with g_right:
+        # Selectbox fallback (also works without clicking — accessibility)
+        loc_names = [loc["name"] for loc in LONDON_LOCATIONS]
+        default_idx = sel_idx if sel_idx is not None else 0
+        picked = st.selectbox(
+            "📍 Or pick a location",
+            loc_names,
+            index=default_idx,
+            key="loc_picker",
+        )
+        new_idx = loc_names.index(picked)
+        if new_idx != sel_idx:
+            st.session_state["selected_location_idx"] = new_idx
+            sel_idx = new_idx
+
+        if sel_idx is None:
+            st.info("👆 Click a marker on the globe (or pick from the dropdown) to splash its 80-year trajectory into the charts below.")
+        else:
+            sel_loc = LONDON_LOCATIONS[sel_idx]
+            sel_d = next((g for g in globe_data if g["name"] == sel_loc["name"]), None)
+            if sel_d:
+                st.markdown(f"""
+                <div class="loc-splash">
+                  <div class="ls-eyebrow">Selected location</div>
+                  <div class="ls-name">📍 {sel_d['name']}</div>
+                  <div class="ls-borough">🏙️ {sel_d.get('borough', '—')} ·
+                    river {int(sel_d['river']*100)}% · green {int(sel_d['green']*100)}% · urban {int(sel_d['urban']*100)}%</div>
+                  <div class="ls-row">
+                    <div class="ls-stat">
+                      <div class="lsv {severity_class(sel_d['flood'])}">{sel_d['flood']:.0f}</div>
+                      <div class="lsl">🌊 Flood / 100</div>
+                    </div>
+                    <div class="ls-stat">
+                      <div class="lsv {severity_class(sel_d['drought'])}">{sel_d['drought']:.0f}</div>
+                      <div class="lsl">🌵 Drought / 100</div>
+                    </div>
+                    <div class="ls-stat">
+                      <div class="lsv">{sel_d['flood'] - flood_val:+.0f}</div>
+                      <div class="lsl">vs city avg</div>
+                    </div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button("🔄 Back to city view", use_container_width=True, key="reset_loc"):
+                    st.session_state.pop("selected_location_idx", None)
+                    st.rerun()
+
+    st.caption(
+        "Location risk profiles are illustrative for the festival demo, not an official hazard map. "
+        "For authoritative London flood data see the [Environment Agency Flood Map for Planning](https://flood-map-for-planning.service.gov.uk/)."
+    )
+
+    # ============================================================
+    # SECTION 2 — TRAJECTORY CHARTS (city-wide OR selected location)
+    # ============================================================
+
+    # If a location is selected, build location-specific trajectories
+    sel_idx = st.session_state.get("selected_location_idx")
+    if sel_idx is not None:
+        sel_loc = LONDON_LOCATIONS[sel_idx]
+        # Modulate every year's flood/drought via local_risk
+        local_flood, local_drought = [], []
+        for _, row in df.iterrows():
+            fl, dr = local_risk(sel_loc, float(row["flood_risk"]), float(row["drought_risk"]),
+                                st.session_state["green_infra_pct"],
+                                st.session_state["urbanization_pct"])
+            local_flood.append(fl)
+            local_drought.append(dr)
+        local_label = f"📍 {sel_loc['name']} — splashed trajectory"
+        risk_title = f"🌊 Flood & drought — {sel_loc['name']}"
+        temp_title = "🌡️ Temperature trajectory (city-wide)"
+    else:
+        local_flood = local_drought = None
+        local_label = ""
+        risk_title = "🌊 Flood & drought risk (city-wide)"
+        temp_title = "🌡️ Temperature trajectory"
+
     L, R = st.columns([1, 1])
 
     # ---------------- Temperature ----------------
     with L:
-        st.subheader("🌡️ Temperature trajectory")
+        st.subheader(temp_title)
         fig_t = go.Figure()
 
-        # Historical splice (HadCRUT5)
         if st.session_state["show_history"]:
             fig_t.add_trace(go.Scatter(
                 x=[y for y, _ in HADCRUT_HISTORICAL],
@@ -775,7 +1287,6 @@ with tab_charts:
                 hovertemplate="<b>%{x}</b>: %{y:.2f} °C<extra>HadCRUT5</extra>",
             ))
 
-        # Uncertainty band — drawn first so it sits behind the line
         if mc is not None:
             fig_t.add_trace(go.Scatter(
                 x=mc["year"], y=mc["temp_p95"],
@@ -790,7 +1301,6 @@ with tab_charts:
                 hovertemplate="<b>%{x}</b>: 5–95% band<extra></extra>",
             ))
 
-        # Main scenario line
         fig_t.add_trace(go.Scatter(
             x=df["year"], y=df["temp_anomaly_C"],
             mode="lines", name="Your scenario",
@@ -798,7 +1308,6 @@ with tab_charts:
             hovertemplate="<b>%{x}</b>: <b>%{y:.2f} °C</b><extra>Your scenario</extra>",
         ))
 
-        # SSP reference horizontal lines at 2100
         if st.session_state["show_ssp"]:
             for name, info in SSP_SCENARIOS.items():
                 fig_t.add_hline(
@@ -809,24 +1318,23 @@ with tab_charts:
                     annotation_position="right",
                 )
 
-        fig_t.update_layout(**_plotly_layout("Projected warming above pre-industrial", "°C"))
+        fig_t.update_layout(**_plotly_layout("Projected warming above pre-industrial", "°C", height=360))
         st.plotly_chart(fig_t, use_container_width=True,
                         config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
 
-    # ---------------- Risks ----------------
+    # ---------------- Risks (city OR location) ----------------
     with R:
-        st.subheader("🌊 Flood & drought risk")
+        st.subheader(risk_title)
         fig_r = go.Figure()
 
-        if mc is not None:
-            # Flood band
+        if mc is not None and sel_idx is None:
+            # Bands only on the city-wide view (Monte Carlo is on city aggregates)
             fig_r.add_trace(go.Scatter(x=mc["year"], y=mc["flood_p95"],
                 mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
             fig_r.add_trace(go.Scatter(x=mc["year"], y=mc["flood_p05"],
                 mode="lines", line=dict(width=0), fill="tonexty",
                 fillcolor="rgba(86,180,233,0.16)", name="Flood 5–95% band",
                 hoverinfo="skip"))
-            # Drought band
             fig_r.add_trace(go.Scatter(x=mc["year"], y=mc["drought_p95"],
                 mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
             fig_r.add_trace(go.Scatter(x=mc["year"], y=mc["drought_p05"],
@@ -834,18 +1342,43 @@ with tab_charts:
                 fillcolor="rgba(230,159,0,0.16)", name="Drought 5–95% band",
                 hoverinfo="skip"))
 
+        # City baseline — drawn faint when a location is selected
+        baseline_op = 0.35 if sel_idx is not None else 1.0
         fig_r.add_trace(go.Scatter(
-            x=df["year"], y=df["flood_risk"], mode="lines", name="🌊 Flood",
-            line=dict(color="#56B4E9", width=3, shape="spline"),
-            hovertemplate="<b>%{x}</b>: <b>%{y:.0f}</b>/100<extra>Flood</extra>",
+            x=df["year"], y=df["flood_risk"], mode="lines",
+            name="🌊 Flood (city)" if sel_idx is not None else "🌊 Flood",
+            line=dict(color="#56B4E9", width=2 if sel_idx is not None else 3,
+                      shape="spline", dash="dot" if sel_idx is not None else "solid"),
+            opacity=baseline_op,
+            hovertemplate="<b>%{x}</b>: <b>%{y:.0f}</b>/100<extra>City flood</extra>",
         ))
         fig_r.add_trace(go.Scatter(
-            x=df["year"], y=df["drought_risk"], mode="lines", name="🌵 Drought",
-            line=dict(color="#E69F00", width=3, shape="spline"),
-            hovertemplate="<b>%{x}</b>: <b>%{y:.0f}</b>/100<extra>Drought</extra>",
+            x=df["year"], y=df["drought_risk"], mode="lines",
+            name="🌵 Drought (city)" if sel_idx is not None else "🌵 Drought",
+            line=dict(color="#E69F00", width=2 if sel_idx is not None else 3,
+                      shape="spline", dash="dot" if sel_idx is not None else "solid"),
+            opacity=baseline_op,
+            hovertemplate="<b>%{x}</b>: <b>%{y:.0f}</b>/100<extra>City drought</extra>",
         ))
 
-        # Challenge target lines
+        # SPLASHED location lines
+        if sel_idx is not None:
+            sel_name = LONDON_LOCATIONS[sel_idx]["name"]
+            fig_r.add_trace(go.Scatter(
+                x=df["year"], y=local_flood, mode="lines",
+                name=f"🌊 {sel_name}",
+                line=dict(color="#38bdf8", width=4, shape="spline"),
+                hovertemplate=("<b>%{x}</b>: <b>%{y:.0f}</b>/100"
+                               f"<extra>{sel_name} flood</extra>"),
+            ))
+            fig_r.add_trace(go.Scatter(
+                x=df["year"], y=local_drought, mode="lines",
+                name=f"🌵 {sel_name}",
+                line=dict(color="#fb923c", width=4, shape="spline"),
+                hovertemplate=("<b>%{x}</b>: <b>%{y:.0f}</b>/100"
+                               f"<extra>{sel_name} drought</extra>"),
+            ))
+
         if st.session_state.get("challenge_on", False):
             fig_r.add_hline(y=target_flood, line=dict(color="#56B4E9", width=1, dash="dash"),
                             annotation=dict(text=f"Flood target ≤ {target_flood}",
@@ -858,134 +1391,16 @@ with tab_charts:
                                             bgcolor="rgba(15,23,42,0.6)"),
                             annotation_position="right")
 
-        layout = _plotly_layout("Risk trajectories (0–100 unitless index)", "Risk index")
+        layout = _plotly_layout("Risk trajectories (0–100 unitless index)", "Risk index", height=360)
         layout["yaxis"]["range"] = [0, 100]
         fig_r.update_layout(**layout)
         st.plotly_chart(fig_r, use_container_width=True,
                         config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
 
-    # ------------------------------------------------------------------
-    # LIVE 3D GLOBE — replaces the old London map tab
-    # ------------------------------------------------------------------
-    st.markdown("### 🌍 Live globe — London neighbourhoods respond to your sliders")
-    g_left, g_right = st.columns([3, 1])
-    with g_right:
-        globe_view = st.radio(
-            "Risk shown:",
-            ["Combined", "Flood risk", "Drought risk"],
-            key="globe_risk_view",
-        )
-        st.caption("🖱️ Drag the globe to rotate.\nMarker size + colour update live with the sliders.")
-
-    # Compute per-location risks (responds to current sliders)
-    globe_data = []
-    for loc in LONDON_LOCATIONS:
-        fl, dr = local_risk(loc, flood_val, drought_val,
-                            st.session_state["green_infra_pct"],
-                            st.session_state["urbanization_pct"])
-        if globe_view == "Flood risk":
-            shown = fl
-        elif globe_view == "Drought risk":
-            shown = dr
-        else:
-            shown = (fl + dr) / 2
-        globe_data.append({**loc, "flood": fl, "drought": dr, "shown": shown})
-
-    # Build the orthographic globe
-    fig_globe = go.Figure()
-
-    # Pulsing concentric rings for high-risk locations (drawn first → behind markers)
-    for d in globe_data:
-        if d["shown"] >= 60:
-            fig_globe.add_trace(go.Scattergeo(
-                lon=[d["lon"]], lat=[d["lat"]],
-                mode="markers",
-                marker=dict(
-                    size=int(28 + d["shown"] / 3),
-                    color="rgba(248,113,113,0.18)" if d["shown"] >= 75 else "rgba(56,189,248,0.18)",
-                    line=dict(width=0),
-                ),
-                hoverinfo="skip", showlegend=False,
-            ))
-
-    # Main markers
-    fig_globe.add_trace(go.Scattergeo(
-        lon=[d["lon"] for d in globe_data],
-        lat=[d["lat"] for d in globe_data],
-        text=[d["name"] for d in globe_data],
-        customdata=[[d["flood"], d["drought"], d.get("borough", "—"),
-                     int(d["river"] * 100), int(d["green"] * 100), int(d["urban"] * 100)]
-                    for d in globe_data],
-        mode="markers",
-        marker=dict(
-            size=[max(10, 8 + d["shown"] / 3) for d in globe_data],
-            color=[d["shown"] for d in globe_data],
-            colorscale=[
-                [0.0,  "#10b981"],   # green
-                [0.25, "#34d399"],
-                [0.5,  "#fbbf24"],   # amber
-                [0.75, "#fb923c"],   # orange
-                [1.0,  "#ef4444"],   # red
-            ],
-            cmin=0, cmax=100,
-            showscale=True,
-            colorbar=dict(
-                title=dict(text=globe_view, font=dict(color="#cbd5e1", size=11)),
-                tickfont=dict(color="#cbd5e1", size=10),
-                thickness=12, len=0.7, x=1.02,
-                bgcolor="rgba(0,0,0,0)",
-            ),
-            line=dict(width=1.5, color="rgba(255,255,255,0.65)"),
-            opacity=0.95,
-        ),
-        hovertemplate=(
-            "<b>%{text}</b><br>"
-            "🏙️ Borough: %{customdata[2]}<br>"
-            "🌊 Flood risk: <b>%{customdata[0]:.0f}</b>/100<br>"
-            "🌵 Drought risk: <b>%{customdata[1]:.0f}</b>/100<br>"
-            "<i>River %{customdata[3]}% · green %{customdata[4]}% · urban %{customdata[5]}%</i>"
-            "<extra></extra>"
-        ),
-        name="London hotspots",
-    ))
-
-    fig_globe.update_layout(
-        geo=dict(
-            projection=dict(
-                type="orthographic",
-                rotation=dict(lon=-0.13, lat=51.5, roll=0),
-                scale=4.2,
-            ),
-            showland=True, landcolor="rgb(40, 55, 80)",
-            showocean=True, oceancolor="rgb(8, 14, 28)",
-            showcountries=True, countrycolor="rgba(255,255,255,0.22)",
-            showcoastlines=True, coastlinecolor="rgba(125,211,252,0.5)",
-            showlakes=True, lakecolor="rgb(12, 22, 44)",
-            showrivers=True, rivercolor="rgba(56,189,248,0.5)",
-            bgcolor="rgba(0,0,0,0)",
-            center=dict(lon=-0.13, lat=51.5),
-        ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="-apple-system, BlinkMacSystemFont, Inter, sans-serif", color="#cbd5e1"),
-        margin=dict(t=10, b=10, l=0, r=0),
-        height=560,
-        hoverlabel=dict(bgcolor="rgba(15,23,42,0.96)",
-                        bordercolor="rgba(125,211,252,0.4)",
-                        font=dict(color="#e2e8f0", size=12)),
-        transition=dict(duration=500, easing="cubic-in-out"),
-        showlegend=False,
-    )
-
-    with g_left:
-        st.plotly_chart(fig_globe, use_container_width=True,
-                        config={"displaylogo": False, "scrollZoom": True,
-                                "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
-
-    st.caption(
-        "Location risk profiles are illustrative for the festival demo, not an official hazard map. "
-        "For authoritative London flood data see the [Environment Agency Flood Map for Planning](https://flood-map-for-planning.service.gov.uk/)."
-    )
+    if sel_idx is not None:
+        st.caption(f"💡 Charts above show {LONDON_LOCATIONS[sel_idx]['name']}'s trajectory "
+                   "(solid bold) overlaid on the city baseline (dotted). "
+                   "Click '🔄 Back to city view' beside the globe to return to city-wide.")
 
     # Researcher mode: extra diagnostics
     if st.session_state["researcher_mode"]:
