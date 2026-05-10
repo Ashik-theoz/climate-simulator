@@ -461,15 +461,15 @@ if not st.session_state.get("splash_shown", False):
     body:has(.splash) section[data-testid="stSidebar"] { display: none !important; }
     body:has(.splash) header[data-testid="stHeader"]   { display: none !important; }
     body:has(.splash) div[data-testid="stToolbar"]     { display: none !important; }
-    /* Make the whole welcome page fill the viewport — no empty bottom space.
-       Block container becomes a 100vh flex column centered vertically. */
+    /* Welcome page fills the viewport but keeps Streamlit's natural
+       horizontal padding so the card is FRAMED with side margins —
+       not stretched edge-to-edge. */
     body:has(.splash) .block-container {
-        padding: 0 !important;
-        max-width: 100% !important;
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        /* DO NOT override max-width or left/right padding —
+           Streamlit's defaults give the card its left/right breathing room */
         min-height: 100vh !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
     }
     body:has(.splash) [data-testid="stMain"],
     body:has(.splash) [data-testid="stAppViewContainer"] {
@@ -478,9 +478,10 @@ if not st.session_state.get("splash_shown", False):
 
     .splash {
         position: relative;
-        /* Card dominates the viewport so the welcome page feels full-screen */
-        min-height: 70vh;
-        padding: 40px 24px 32px;
+        /* Card sized so card + button + credit together fill the viewport.
+           ~82vh card + 2vh top + ~14vh button/credit = ~98vh total, no empty bottom. */
+        min-height: 82vh;
+        padding: 48px 28px 36px;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         text-align: center;
