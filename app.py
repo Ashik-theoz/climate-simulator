@@ -453,19 +453,21 @@ section[data-testid="stSidebar"] details[open] summary {
 # SPLASH SCREEN — game-style intro
 # ============================================================================
 if not st.session_state.get("splash_shown", False):
-    # Hide sidebar + header for a true full-screen takeover
+    # Hide sidebar + header for a true full-screen takeover.
+    # Scope with body:has(.splash) so the rules only apply while the splash
+    # element is in the DOM — they vanish the moment splash is dismissed.
     st.markdown("""
     <style>
-    section[data-testid="stSidebar"] { display: none !important; }
-    header[data-testid="stHeader"]   { display: none !important; }
-    div[data-testid="stToolbar"]     { display: none !important; }
-    .block-container { padding-top: 0 !important; max-width: 100% !important; }
+    body:has(.splash) section[data-testid="stSidebar"] { display: none !important; }
+    body:has(.splash) header[data-testid="stHeader"]   { display: none !important; }
+    body:has(.splash) div[data-testid="stToolbar"]     { display: none !important; }
+    body:has(.splash) .block-container { padding-top: 0 !important; max-width: 100% !important; }
 
     .splash {
         position: relative;
-        /* Compact so the button + "click to begin" + credit all fit in one viewport */
-        min-height: 56vh;
-        padding: 22px 18px 18px;
+        /* No min-height: card sizes to its content, leaving room for
+           button + "click to begin" + credit below in the viewport. */
+        padding: 30px 24px 28px;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         text-align: center;
@@ -473,7 +475,7 @@ if not st.session_state.get("splash_shown", False):
             radial-gradient(ellipse 1200px 600px at 50% 0%, rgba(46,134,222,0.30), transparent 60%),
             radial-gradient(ellipse 800px 500px at 90% 100%, rgba(238,90,36,0.28), transparent 60%),
             radial-gradient(ellipse 800px 500px at 10% 100%, rgba(125,211,252,0.18), transparent 60%);
-        border-radius: 18px;
+        border-radius: 20px;
         overflow: hidden;
     }
     /* Floating ambient particles */
@@ -495,10 +497,10 @@ if not st.session_state.get("splash_shown", False):
     }
 
     .splash-icons {
-        font-size: 48px;
-        letter-spacing: 16px;
-        margin-bottom: 12px;
-        filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+        font-size: 60px;
+        letter-spacing: 22px;
+        margin-bottom: 16px;
+        filter: drop-shadow(0 5px 14px rgba(0,0,0,0.5));
         animation: floatIcons 3.6s ease-in-out infinite;
     }
     .splash-icons span:nth-child(1) { animation: bounceIcon 3s ease-in-out infinite; display: inline-block; }
@@ -515,21 +517,21 @@ if not st.session_state.get("splash_shown", False):
 
     .splash-welcome {
         display: inline-block;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 700;
-        letter-spacing: 0.4em;
+        letter-spacing: 0.45em;
         color: #fbbf24;
         background: rgba(251,191,36,0.08);
         border: 1px solid rgba(251,191,36,0.35);
         border-radius: 999px;
-        padding: 4px 16px 4px 22px;
-        margin-bottom: 12px;
+        padding: 5px 20px 5px 26px;
+        margin-bottom: 18px;
         animation: badgeIn 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.2s both, badgeGlow 3s ease-in-out infinite 1s;
         text-transform: uppercase;
     }
 
     .splash-lab {
-        font-size: clamp(26px, 4.8vw, 48px);
+        font-size: clamp(32px, 5.5vw, 56px);
         font-weight: 900;
         letter-spacing: -0.02em;
         line-height: 1.0;
@@ -540,31 +542,31 @@ if not st.session_state.get("splash_shown", False):
         color: transparent;
         margin: 0;
         animation: fadeInUp 0.9s cubic-bezier(0.2,0.8,0.2,1) 0.5s both, shimmer 6s linear infinite 0.5s;
-        text-shadow: 0 0 30px rgba(125,211,252,0.3);
+        text-shadow: 0 0 36px rgba(125,211,252,0.3);
     }
 
     .splash-divider {
-        width: 100px; height: 2px;
-        margin: 12px 0 8px;
+        width: 110px; height: 2px;
+        margin: 18px 0 12px;
         background: linear-gradient(90deg, transparent, #fbbf24, transparent);
         animation: fadeIn 0.8s ease 0.9s both;
     }
 
     .splash-question {
-        font-size: clamp(15px, 1.9vw, 22px);
+        font-size: clamp(18px, 2.2vw, 26px);
         font-style: italic;
         color: #e2e8f0;
         font-weight: 400;
-        margin: 0 0 8px;
+        margin: 0 0 12px;
         animation: fadeInUp 0.9s cubic-bezier(0.2,0.8,0.2,1) 1.05s both;
         text-shadow: 0 2px 10px rgba(0,0,0,0.4);
     }
 
     .splash-tagline {
-        font-size: 13px;
+        font-size: 14px;
         color: #94a3b8;
         letter-spacing: 0.04em;
-        margin-bottom: 12px;
+        margin-bottom: 6px;
         animation: fadeInUp 0.8s ease 1.3s both;
     }
     .splash-tagline .ts { color: #7dd3fc; }
@@ -654,6 +656,34 @@ if not st.session_state.get("splash_shown", False):
 # MAIN APP — only reached after splash dismissed
 # ============================================================================
 # Hero removed — the splash already covers the title. We go straight to metrics.
+
+# Force sidebar open on every page load. Streamlit's `initial_sidebar_state`
+# only applies once per session; if the browser remembers a collapsed state
+# (or auto-collapsed on a narrow viewport at any point) it stays collapsed.
+# This injected JS finds the "open sidebar" toggle and clicks it if visible.
+components.html("""
+<script>
+(function() {
+  const tryExpand = (attempt = 0) => {
+    if (attempt > 30) return;  // give up after ~9s
+    const doc = window.parent.document;
+    const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+    // If sidebar is collapsed, the "open" toggle is rendered separately
+    const openBtn = doc.querySelector(
+      '[data-testid="stSidebarCollapsedControl"] button, ' +
+      '[data-testid="collapsedControl"] button, ' +
+      'button[kind="header"][aria-label*="ide"], ' +
+      'button[aria-label="Open sidebar"]'
+    );
+    // Sidebar present and visibly open? Done.
+    if (sidebar && sidebar.getBoundingClientRect().width > 50) return;
+    if (openBtn) { openBtn.click(); return; }
+    setTimeout(() => tryExpand(attempt + 1), 300);
+  };
+  tryExpand();
+})();
+</script>
+""", height=0)
 
 # ============================================================================
 # Session state defaults — synced with URL query params for shareable links
