@@ -36,19 +36,45 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* === HIDE STREAMLIT CHROME (Share / Star / GitHub / 3-dot menu / deploy bar) === */
-header[data-testid="stHeader"] { display: none !important; }
+/* === HIDE STREAMLIT CHROME (Share / Star / GitHub / 3-dot menu / deploy bar) ===
+   Critical: do NOT hide the header itself or any "header" buttons globally —
+   the sidebar collapse/expand toggle lives there. Hide only the right-side
+   action chrome. */
 [data-testid="stToolbar"] { display: none !important; }
+[data-testid="stToolbarActions"] { display: none !important; }
 [data-testid="stDecoration"] { display: none !important; }
 [data-testid="stStatusWidget"] { display: none !important; }
 .stAppDeployButton, .stDeployButton { display: none !important; }
-button[kind="header"] { display: none !important; }
 .viewerBadge_container__1QSob, .viewerBadge_link__qRIco { display: none !important; }
 #MainMenu { display: none !important; }
 footer { display: none !important; }
-/* Pull content up to fill the gap left by the hidden header */
-.stApp > header { display: none !important; }
-.block-container { padding-top: 1.0rem !important; }
+
+/* Header itself stays in the DOM (so the sidebar collapse toggle can render
+   inside it) but it's transparent and slim so it doesn't draw attention. */
+header[data-testid="stHeader"] {
+  background: transparent !important;
+  height: 32px !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+header[data-testid="stHeader"] > * { background: transparent !important; }
+
+/* Sidebar must stay visible and its collapse/expand button must remain
+   accessible. We explicitly force these regardless of any other rule. */
+section[data-testid="stSidebar"] {
+  display: flex !important;
+  visibility: visible !important;
+}
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"],
+button[data-testid="baseButton-headerNoPadding"] {
+  display: flex !important;
+  visibility: visible !important;
+  z-index: 9999 !important;
+}
+
+.block-container { padding-top: 0.5rem !important; }
 
 .stApp {
     background:
@@ -1052,6 +1078,10 @@ with tab_charts:
         } for d in globe_data],
         "view": globe_view,
         "selected": sel_loc_payload,
+        # City-wide values used in the OSM annotation when zoomed in
+        "city_temp": float(temp_val),
+        "city_flood": float(flood_val),
+        "city_drought": float(drought_val),
     }
 
     globe_html = """
@@ -1204,59 +1234,148 @@ const config = {
 };
 
 // =============================================================
-// SINGLE 3D ORTHOGRAPHIC GLOBE — used for BOTH world view and
-// zoomed-in selected view. Selecting a location just changes the
-// rotation + scale; the projection stays orthographic so the globe
-// keeps its 3D look. Auto-rotation runs only when nothing is
-// selected; when zoomed onto a borough the globe stays still so
-// the user can see the location clearly.
+// HYBRID VIEW:
+//   - No selection: spinning 3D orthographic globe (world view)
+//   - Selection:    Google-Maps-style street view (OpenStreetMap)
+//                   with temp / flood / drought labels overlaid
 // =============================================================
-const globeLayout = {
-  geo: {
-    resolution: 50,                     // higher-detail Natural Earth
-    projection: {
-      type: 'orthographic',
-      rotation: sel ? {lon: sel.lon, lat: sel.lat, roll: 0}
-                    : {lon: -0.13, lat: 20, roll: 0},
-      // Mild zoom on selection — keeps land visible while focusing on borough
-      scale: sel ? 12 : 1.7
-    },
-    showland: true,        landcolor:    'rgb(75, 95, 130)',
-    showocean: true,       oceancolor:   'rgb(8, 14, 28)',
-    showcountries: true,   countrycolor: 'rgba(255,255,255,0.35)',
-    showcoastlines: true,  coastlinecolor:'rgba(125,211,252,0.75)',
-    showlakes: true,       lakecolor:    'rgb(12, 22, 44)',
-    showrivers: true,      rivercolor:   'rgba(56,189,248,0.7)',
-    showsubunits: true,    subunitcolor: 'rgba(255,255,255,0.20)',
-    bgcolor: 'rgba(0,0,0,0)'
-  },
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor: 'rgba(0,0,0,0)',
-  font: {family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif', color: '#cbd5e1'},
-  margin: {t: 10, b: 10, l: 0, r: 0},
-  height: 580,
-  hoverlabel: {bgcolor: 'rgba(15,23,42,0.96)',
-               bordercolor: 'rgba(125,211,252,0.4)',
-               font: {color: '#e2e8f0', size: 12}},
-  showlegend: false,
-  annotations: sel ? [{
-    x: 0.02, y: 0.97, xref: 'paper', yref: 'paper',
-    xanchor: 'left', yanchor: 'top',
-    text: "<b style='color:#fbbf24'>📍 " + sel.name + "</b>",
-    showarrow: false,
-    font: {size: 13, color: '#e2e8f0',
-           family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
-    bgcolor: 'rgba(15,23,42,0.78)',
-    bordercolor: 'rgba(251,191,36,0.45)',
-    borderwidth: 1, borderpad: 8,
-    align: 'left'
-  }] : []
-};
-
 const gd = document.getElementById('globe');
-Plotly.newPlot(gd, buildTraces(), globeLayout, config).then(() => {
-  // Auto-rotate ONLY when no location is selected — locked-on otherwise
-  if (!sel) {
+
+// ---------- MAPBOX (street-level) traces for the zoomed view ----------
+function buildMapboxTraces() {
+  const out = [];
+  if (!sel) return out;
+
+  // Layered glow pin
+  out.push({type:'scattermapbox', lon:[sel.lon], lat:[sel.lat],
+    mode:'markers',
+    marker:{size:90, color:'rgba(251,191,36,0.18)'},
+    hoverinfo:'skip', showlegend:false});
+  out.push({type:'scattermapbox', lon:[sel.lon], lat:[sel.lat],
+    mode:'markers',
+    marker:{size:60, color:'rgba(251,191,36,0.32)'},
+    hoverinfo:'skip', showlegend:false});
+  out.push({type:'scattermapbox', lon:[sel.lon], lat:[sel.lat],
+    mode:'markers+text',
+    marker:{size:28, color:'#fbbf24'},
+    text:['📍 '+sel.name],
+    textposition:'top right',
+    textfont:{size:14, color:'#fbbf24',
+              family:'-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
+    hoverinfo:'skip', showlegend:false});
+
+  // Visual signs near the pin — flood ABOVE, drought BELOW
+  const ROW_OFFSET_LAT = 0.0035;
+  const ICON_STEP_LON  = 0.0030;
+
+  let fIcons, fSize;
+  if (sel.flood < 30)       { fIcons=['💧'];           fSize=30; }
+  else if (sel.flood < 60)  { fIcons=['💧','🌊'];      fSize=32; }
+  else if (sel.flood < 85)  { fIcons=['💧','🌊','☔']; fSize=36; }
+  else                      { fIcons=['🌊','☔','🌊']; fSize=40; }
+
+  let dIcons, dSize;
+  if (sel.drought < 30)     { dIcons=['🌱'];            dSize=30; }
+  else if (sel.drought < 60){ dIcons=['☀️','🌵'];       dSize=32; }
+  else if (sel.drought < 85){ dIcons=['🔥','☀️','🌵'];  dSize=36; }
+  else                      { dIcons=['🔥','🥵','🔥'];  dSize=40; }
+
+  for (let i=0;i<fIcons.length;i++) {
+    const dLon = sel.lon + (i - (fIcons.length-1)/2) * ICON_STEP_LON;
+    out.push({type:'scattermapbox', lon:[dLon], lat:[sel.lat+ROW_OFFSET_LAT],
+      mode:'text', text:[fIcons[i]],
+      textfont:{size:fSize, color:'#1e3a8a'},
+      hoverinfo:'skip', showlegend:false});
+  }
+  for (let i=0;i<dIcons.length;i++) {
+    const dLon = sel.lon + (i - (dIcons.length-1)/2) * ICON_STEP_LON;
+    out.push({type:'scattermapbox', lon:[dLon], lat:[sel.lat-ROW_OFFSET_LAT],
+      mode:'text', text:[dIcons[i]],
+      textfont:{size:dSize, color:'#7c2d12'},
+      hoverinfo:'skip', showlegend:false});
+  }
+  return out;
+}
+
+if (sel) {
+  // ============================================================
+  // STREET-LEVEL VIEW — OpenStreetMap (Google-Maps-style detail)
+  // with temp/flood/drought header labels overlaid on the map.
+  // ============================================================
+  const tempLabel    = (PAYLOAD.city_temp ?? 0).toFixed(2) + '°C';
+  const floodLabel   = Math.round(sel.flood) + '/100';
+  const droughtLabel = Math.round(sel.drought) + '/100';
+
+  const mapLayout = {
+    mapbox: {
+      style: 'open-street-map',
+      center: {lat: sel.lat, lon: sel.lon},
+      zoom: 14
+    },
+    margin: {t: 0, b: 0, l: 0, r: 0},
+    height: 580,
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    showlegend: false,
+    annotations: [
+      // Top-left: location name
+      {x:0.01, y:0.99, xref:'paper', yref:'paper',
+       xanchor:'left', yanchor:'top',
+       text: "<b style='color:#0b1220;font-size:15px'>📍 " + sel.name + "</b>"
+             + "<br><span style='color:#475569;font-size:11px'>" + sel.borough + "</span>",
+       showarrow:false,
+       font:{family:'-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
+       bgcolor:'rgba(255,255,255,0.94)',
+       bordercolor:'rgba(251,191,36,0.7)',
+       borderwidth:2, borderpad:10, align:'left'},
+      // Top-right: live values strip (temp / flood / drought)
+      {x:0.99, y:0.99, xref:'paper', yref:'paper',
+       xanchor:'right', yanchor:'top',
+       text: "<b style='color:#dc2626;font-size:13px'>🌡️ " + tempLabel + "</b>"
+             + "<br><b style='color:#1e40af;font-size:13px'>🌊 Flood " + floodLabel + "</b>"
+             + "<br><b style='color:#b45309;font-size:13px'>🌵 Drought " + droughtLabel + "</b>",
+       showarrow:false,
+       font:{family:'-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
+       bgcolor:'rgba(255,255,255,0.94)',
+       bordercolor:'rgba(15,23,42,0.25)',
+       borderwidth:1, borderpad:10, align:'right'}
+    ]
+  };
+  Plotly.newPlot(gd, buildMapboxTraces(), mapLayout, config);
+
+} else {
+  // ============================================================
+  // WORLD VIEW — auto-rotating 3D orthographic globe
+  // ============================================================
+  const globeLayout = {
+    geo: {
+      resolution: 50,
+      projection: {
+        type: 'orthographic',
+        rotation: {lon: -0.13, lat: 20, roll: 0},
+        scale: 1.7
+      },
+      showland: true,        landcolor:    'rgb(75, 95, 130)',
+      showocean: true,       oceancolor:   'rgb(8, 14, 28)',
+      showcountries: true,   countrycolor: 'rgba(255,255,255,0.35)',
+      showcoastlines: true,  coastlinecolor:'rgba(125,211,252,0.75)',
+      showlakes: true,       lakecolor:    'rgb(12, 22, 44)',
+      showrivers: true,      rivercolor:   'rgba(56,189,248,0.7)',
+      showsubunits: true,    subunitcolor: 'rgba(255,255,255,0.20)',
+      bgcolor: 'rgba(0,0,0,0)'
+    },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: {family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif', color: '#cbd5e1'},
+    margin: {t: 10, b: 10, l: 0, r: 0},
+    height: 580,
+    hoverlabel: {bgcolor: 'rgba(15,23,42,0.96)',
+                 bordercolor: 'rgba(125,211,252,0.4)',
+                 font: {color: '#e2e8f0', size: 12}},
+    showlegend: false
+  };
+
+  Plotly.newPlot(gd, buildTraces(), globeLayout, config).then(() => {
     let rotLon = -180;
     let paused = false;
     gd.addEventListener('mouseenter', () => { paused = true; });
@@ -1270,8 +1389,8 @@ Plotly.newPlot(gd, buildTraces(), globeLayout, config).then(() => {
         'geo.projection.rotation.lat': 20
       });
     }, 50);
-  }
-});
+  });
+}
 </script>
 </body>
 </html>
@@ -1291,27 +1410,19 @@ Plotly.newPlot(gd, buildTraces(), globeLayout, config).then(() => {
     sel_idx = st.session_state.get("selected_location_idx")
 
     with g_right:
-        # Dropdown with explicit "City overview" option so the first
-        # render doesn't auto-select Westminster.
+        # Plain dropdown — uses placeholder text when nothing is picked,
+        # so the spinning globe stays the default view on first load.
         loc_names = [loc["name"] for loc in LONDON_LOCATIONS]
-        OVERVIEW_LABEL = "🌐 City overview (rotating globe)"
-        options = [OVERVIEW_LABEL] + loc_names
-        default_pick = (loc_names[sel_idx]
-                        if sel_idx is not None and 0 <= sel_idx < len(loc_names)
-                        else OVERVIEW_LABEL)
         picked = st.selectbox(
-            "📍 Or pick a location",
-            options,
-            index=options.index(default_pick),
+            "📍 Pick a location to zoom in",
+            loc_names,
+            index=sel_idx if sel_idx is not None else None,
+            placeholder="Choose a London borough…",
             key="loc_picker",
         )
-        # Map dropdown choice → sel_idx (None for overview, int for a location)
-        if picked == OVERVIEW_LABEL:
-            new_idx = None
-        else:
-            new_idx = loc_names.index(picked)
+        new_idx = loc_names.index(picked) if picked is not None else None
 
-        # Force immediate rerun so the globe/mapbox view updates without lag
+        # Force immediate rerun so the view switches without lag
         if new_idx != sel_idx:
             if new_idx is None:
                 st.session_state.pop("selected_location_idx", None)
