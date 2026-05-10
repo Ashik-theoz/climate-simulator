@@ -60,11 +60,12 @@ header[data-testid="stHeader"] {
 header[data-testid="stHeader"] > * { background: transparent !important; }
 
 /* === SIDEBAR PROTECTION (collapsible-friendly) ================
-   Only protect against accidental `display: none` (e.g. leftover
-   splash CSS). DO NOT lock width/transform/position — Streamlit
-   uses those to animate the user-initiated collapse, so overriding
-   them would break the collapse arrow. */
-html body section[data-testid="stSidebar"]:not([aria-expanded="false"]) {
+   Force display:flex / visibility:visible so the sidebar can't be
+   killed by a stray `display:none` (e.g. leftover splash CSS).
+   DO NOT override `width`, `transform`, or `position` — Streamlit
+   uses those to animate the user's collapse click, so overriding
+   them would break the collapse/expand toggle. */
+html body section[data-testid="stSidebar"] {
   display: flex !important;
   visibility: visible !important;
   opacity: 1 !important;
