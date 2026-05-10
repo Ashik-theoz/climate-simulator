@@ -787,6 +787,17 @@ for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+# Apply any pending scenario / preset BEFORE widgets render. Streamlit
+# forbids setting session_state for a widget key after the widget has
+# been instantiated, so we use a "pending" flag pattern: button clicks
+# set a flag + rerun; here we apply the values before any sliders run.
+_pending = st.session_state.pop("_pending_apply", None)
+if isinstance(_pending, dict):
+    for _k, _v in _pending.items():
+        st.session_state[_k] = _v
+    st.session_state["challenge_won"] = False
+    st.session_state.pop("selected_location_idx", None)
+
 
 def snapshot(df: pd.DataFrame) -> dict:
     return {
@@ -861,10 +872,8 @@ with st.sidebar:
     for col, name in zip([pcol1, pcol2, pcol3], preset_names):
         with col:
             if st.button(name, key=f"preset_{name}", use_container_width=True):
-                for k, v in PRESET_CHIPS[name].items():
-                    st.session_state[k] = v
-                st.session_state["challenge_won"] = False
-                st.session_state.pop("selected_location_idx", None)
+                # Defer state writes to next run (before widgets render)
+                st.session_state["_pending_apply"] = dict(PRESET_CHIPS[name])
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -917,17 +926,14 @@ with st.sidebar:
         with sa1:
             if st.button("Apply", use_container_width=True,
                          disabled=(chosen == "— custom —"), key="apply_lib"):
-                for k, v in SCENARIO_LIBRARY[chosen].items():
-                    st.session_state[k] = v
-                st.session_state["challenge_won"] = False
+                # Defer the state changes to the next run so they happen
+                # BEFORE widget keys are instantiated.
+                st.session_state["_pending_apply"] = dict(SCENARIO_LIBRARY[chosen])
                 st.rerun()
         with sa2:
             if st.button("🔄 Reset", use_container_width=True, key="reset_lib"):
-                for k in list(DEFAULTS.keys()):
-                    st.session_state.pop(k, None)
-                for k, v in DEFAULTS.items():
-                    st.session_state[k] = v
-                st.session_state.pop("selected_location_idx", None)
+                # Defer to next run so we can write to widget keys safely
+                st.session_state["_pending_apply"] = dict(DEFAULTS)
                 st.rerun()
 
     # ---- 5. ADVANCED — display + challenge + compare + AI key ---
