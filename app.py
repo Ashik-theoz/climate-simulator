@@ -59,19 +59,42 @@ header[data-testid="stHeader"] {
 }
 header[data-testid="stHeader"] > * { background: transparent !important; }
 
-/* Sidebar must stay visible and its collapse/expand button must remain
-   accessible. We explicitly force these regardless of any other rule. */
-section[data-testid="stSidebar"] {
+/* === NUCLEAR SIDEBAR FORCE-VISIBLE ============================
+   Earlier CSS tried to be polite. The user's deployment kept hiding
+   the sidebar. These rules use very high specificity + !important to
+   beat any other rule (Streamlit auto-collapse, leftover splash CSS,
+   media-query collapse on narrow viewports, etc.). */
+html body section[data-testid="stSidebar"],
+html body [data-testid="stSidebar"],
+html body section.css-1d391kg,
+html body section[role="complementary"] {
   display: flex !important;
   visibility: visible !important;
+  opacity: 1 !important;
+  width: 21rem !important;
+  min-width: 21rem !important;
+  max-width: 21rem !important;
+  transform: translateX(0) !important;
+  margin-left: 0 !important;
+  position: relative !important;
+  left: 0 !important;
+  flex-shrink: 0 !important;
 }
+html body section[data-testid="stSidebar"] > div,
+html body section[data-testid="stSidebar"] > * {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+/* Even if Streamlit collapses on narrow screens, keep the toggle visible */
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stSidebarCollapseButton"],
 [data-testid="collapsedControl"],
-button[data-testid="baseButton-headerNoPadding"] {
+button[data-testid="baseButton-headerNoPadding"],
+[aria-label="Open sidebar"] {
   display: flex !important;
   visibility: visible !important;
-  z-index: 9999 !important;
+  z-index: 99999 !important;
 }
 
 .block-container { padding-top: 0.5rem !important; }
@@ -1353,7 +1376,7 @@ if (sel) {
       projection: {
         type: 'orthographic',
         rotation: {lon: -0.13, lat: 20, roll: 0},
-        scale: 1.7
+        scale: 1.25  // slightly zoomed out so the whole globe is comfortably visible
       },
       showland: true,        landcolor:    'rgb(75, 95, 130)',
       showocean: true,       oceancolor:   'rgb(8, 14, 28)',
