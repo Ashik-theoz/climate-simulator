@@ -591,10 +591,12 @@ if not st.session_state.get("splash_shown", False):
             st.session_state["splash_shown"] = True
             st.rerun()
 
-    st.markdown("""
+    st.markdown(f"""
     <div style="text-align:center;">
       <div class="splash-prompt">▼  Click to begin  ▼</div>
-      <div class="splash-credit">Imperial College London · MSc Environmental Engineering · 2026</div>
+      <div class="splash-credit">
+        Developed by Ashikujjaman Mohammad · MSc Environmental Engineering · Imperial College London · Model v{MODEL_VERSION} · 2026
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1132,42 +1134,42 @@ function buildTraces() {
 
   // Visual signs when a location is selected
   if (sel) {
-    // Outer aura — sized for the new tighter zoom
+    // Outer aura — sized for scale=12 so it visibly haloes the borough
     traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat], mode: 'markers',
-      marker: {size: 60, color: 'rgba(251,191,36,0.18)', line: {width: 0}},
+      marker: {size: 80, color: 'rgba(251,191,36,0.18)', line: {width: 0}},
       hoverinfo: 'skip', showlegend: false});
     // Mid ring
     traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat], mode: 'markers',
-      marker: {size: 38, color: 'rgba(251,191,36,0.32)', line: {width: 0}},
+      marker: {size: 50, color: 'rgba(251,191,36,0.32)', line: {width: 0}},
       hoverinfo: 'skip', showlegend: false});
     // Solid ring + name
     traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat],
       mode: 'markers+text',
-      marker: {size: 22, color: 'rgba(0,0,0,0)', line: {width: 3, color: '#fbbf24'}},
+      marker: {size: 28, color: 'rgba(0,0,0,0)', line: {width: 3, color: '#fbbf24'}},
       text: ['📍 ' + sel.name],
       textposition: 'top center',
-      textfont: {size: 13, color: '#fbbf24',
+      textfont: {size: 14, color: '#fbbf24',
                  family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
       hoverinfo: 'skip', showlegend: false});
 
-    // ===== ICON ROW — tight horizontal row right above/below the pin =====
-    // At the new zoom (scale ~25), 0.005° offset puts icons within ~550m of
-    // the pin, so they cluster visually next to it instead of scattering.
-    const ROW_OFFSET_LAT = 0.0055;  // distance above/below the pin
-    const ICON_STEP_LON  = 0.0040;  // horizontal spacing between icons
+    // ===== ICON ROW — sits clearly above/below the borough at scale=12 =====
+    // At scale=12 the visible window is ~15° wide, so a 0.6° lat offset puts
+    // icons ~30-40px above/below the pin: visible but still hugging the spot.
+    const ROW_OFFSET_LAT = 0.55;   // ~60km above/below the pin
+    const ICON_STEP_LON  = 0.45;   // horizontal spacing between icons
 
     // Icon set scales BOTH count and size with severity, capped at 3 icons.
     let floodIcons, floodSize;
-    if (sel.flood < 30)       { floodIcons = ['💧'];           floodSize = 22; }
-    else if (sel.flood < 60)  { floodIcons = ['💧', '🌊'];     floodSize = 24; }
-    else if (sel.flood < 85)  { floodIcons = ['💧','🌊','☔']; floodSize = 26; }
-    else                      { floodIcons = ['🌊','☔','🌊']; floodSize = 30; }
+    if (sel.flood < 30)       { floodIcons = ['💧'];           floodSize = 26; }
+    else if (sel.flood < 60)  { floodIcons = ['💧', '🌊'];     floodSize = 28; }
+    else if (sel.flood < 85)  { floodIcons = ['💧','🌊','☔']; floodSize = 32; }
+    else                      { floodIcons = ['🌊','☔','🌊']; floodSize = 36; }
 
     let droughtIcons, droughtSize;
-    if (sel.drought < 30)      { droughtIcons = ['🌱'];             droughtSize = 22; }
-    else if (sel.drought < 60) { droughtIcons = ['☀️','🌵'];        droughtSize = 24; }
-    else if (sel.drought < 85) { droughtIcons = ['🔥','☀️','🌵'];   droughtSize = 26; }
-    else                       { droughtIcons = ['🔥','🥵','🔥'];   droughtSize = 30; }
+    if (sel.drought < 30)      { droughtIcons = ['🌱'];             droughtSize = 26; }
+    else if (sel.drought < 60) { droughtIcons = ['☀️','🌵'];        droughtSize = 28; }
+    else if (sel.drought < 85) { droughtIcons = ['🔥','☀️','🌵'];   droughtSize = 32; }
+    else                       { droughtIcons = ['🔥','🥵','🔥'];   droughtSize = 36; }
 
     // Place flood icons in a row ABOVE the pin
     const flood_n = floodIcons.length;
@@ -1193,73 +1195,6 @@ function buildTraces() {
   return traces;
 }
 
-// ======================================================
-// MAPBOX TRACES — used when a location is selected so the user
-// sees a real street/borough map (OpenStreetMap tiles).
-// ======================================================
-function buildMapboxTraces() {
-  const traces = [];
-  if (!sel) return traces;
-
-  // Outer aura (large transparent disc)
-  traces.push({type: 'scattermapbox', lon: [sel.lon], lat: [sel.lat],
-    mode: 'markers',
-    marker: {size: 90, color: 'rgba(251,191,36,0.18)'},
-    hoverinfo: 'skip', showlegend: false});
-  // Mid ring
-  traces.push({type: 'scattermapbox', lon: [sel.lon], lat: [sel.lat],
-    mode: 'markers',
-    marker: {size: 60, color: 'rgba(251,191,36,0.32)'},
-    hoverinfo: 'skip', showlegend: false});
-  // Solid pin marker
-  traces.push({type: 'scattermapbox', lon: [sel.lon], lat: [sel.lat],
-    mode: 'markers+text',
-    marker: {size: 26, color: '#fbbf24'},
-    text: ['📍 ' + sel.name],
-    textposition: 'top right',
-    textfont: {size: 14, color: '#fbbf24',
-               family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
-    hoverinfo: 'skip', showlegend: false});
-
-  // Visual signs — flood + drought icons placed in tight rows
-  // At mapbox zoom ~13 these offsets put icons within ~500m of the pin
-  const ROW_OFFSET_LAT = 0.0035;
-  const ICON_STEP_LON  = 0.0030;
-
-  let floodIcons, floodSize;
-  if (sel.flood < 30)       { floodIcons = ['💧'];           floodSize = 30; }
-  else if (sel.flood < 60)  { floodIcons = ['💧', '🌊'];     floodSize = 32; }
-  else if (sel.flood < 85)  { floodIcons = ['💧','🌊','☔']; floodSize = 36; }
-  else                      { floodIcons = ['🌊','☔','🌊']; floodSize = 40; }
-
-  let droughtIcons, droughtSize;
-  if (sel.drought < 30)      { droughtIcons = ['🌱'];             droughtSize = 30; }
-  else if (sel.drought < 60) { droughtIcons = ['☀️','🌵'];        droughtSize = 32; }
-  else if (sel.drought < 85) { droughtIcons = ['🔥','☀️','🌵'];   droughtSize = 36; }
-  else                       { droughtIcons = ['🔥','🥵','🔥'];   droughtSize = 40; }
-
-  // Flood row — above pin
-  for (let i = 0; i < floodIcons.length; i++) {
-    const dLon = sel.lon + (i - (floodIcons.length - 1) / 2) * ICON_STEP_LON;
-    traces.push({type: 'scattermapbox',
-      lon: [dLon], lat: [sel.lat + ROW_OFFSET_LAT],
-      mode: 'text', text: [floodIcons[i]],
-      textfont: {size: floodSize, color: '#1e3a8a'},
-      hoverinfo: 'skip', showlegend: false});
-  }
-  // Drought row — below pin
-  for (let i = 0; i < droughtIcons.length; i++) {
-    const dLon = sel.lon + (i - (droughtIcons.length - 1) / 2) * ICON_STEP_LON;
-    traces.push({type: 'scattermapbox',
-      lon: [dLon], lat: [sel.lat - ROW_OFFSET_LAT],
-      mode: 'text', text: [droughtIcons[i]],
-      textfont: {size: droughtSize, color: '#7c2d12'},
-      hoverinfo: 'skip', showlegend: false});
-  }
-
-  return traces;
-}
-
 const config = {
   displaylogo: false,
   displayModeBar: false,
@@ -1268,71 +1203,60 @@ const config = {
   modeBarButtonsToRemove: ['lasso2d', 'select2d']
 };
 
+// =============================================================
+// SINGLE 3D ORTHOGRAPHIC GLOBE — used for BOTH world view and
+// zoomed-in selected view. Selecting a location just changes the
+// rotation + scale; the projection stays orthographic so the globe
+// keeps its 3D look. Auto-rotation runs only when nothing is
+// selected; when zoomed onto a borough the globe stays still so
+// the user can see the location clearly.
+// =============================================================
+const globeLayout = {
+  geo: {
+    resolution: 50,                     // higher-detail Natural Earth
+    projection: {
+      type: 'orthographic',
+      rotation: sel ? {lon: sel.lon, lat: sel.lat, roll: 0}
+                    : {lon: -0.13, lat: 20, roll: 0},
+      // Mild zoom on selection — keeps land visible while focusing on borough
+      scale: sel ? 12 : 1.7
+    },
+    showland: true,        landcolor:    'rgb(75, 95, 130)',
+    showocean: true,       oceancolor:   'rgb(8, 14, 28)',
+    showcountries: true,   countrycolor: 'rgba(255,255,255,0.35)',
+    showcoastlines: true,  coastlinecolor:'rgba(125,211,252,0.75)',
+    showlakes: true,       lakecolor:    'rgb(12, 22, 44)',
+    showrivers: true,      rivercolor:   'rgba(56,189,248,0.7)',
+    showsubunits: true,    subunitcolor: 'rgba(255,255,255,0.20)',
+    bgcolor: 'rgba(0,0,0,0)'
+  },
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(0,0,0,0)',
+  font: {family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif', color: '#cbd5e1'},
+  margin: {t: 10, b: 10, l: 0, r: 0},
+  height: 580,
+  hoverlabel: {bgcolor: 'rgba(15,23,42,0.96)',
+               bordercolor: 'rgba(125,211,252,0.4)',
+               font: {color: '#e2e8f0', size: 12}},
+  showlegend: false,
+  annotations: sel ? [{
+    x: 0.02, y: 0.97, xref: 'paper', yref: 'paper',
+    xanchor: 'left', yanchor: 'top',
+    text: "<b style='color:#fbbf24'>📍 " + sel.name + "</b>",
+    showarrow: false,
+    font: {size: 13, color: '#e2e8f0',
+           family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
+    bgcolor: 'rgba(15,23,42,0.78)',
+    bordercolor: 'rgba(251,191,36,0.45)',
+    borderwidth: 1, borderpad: 8,
+    align: 'left'
+  }] : []
+};
+
 const gd = document.getElementById('globe');
-
-if (sel) {
-  // ============================================================
-  // STREET-LEVEL VIEW — OpenStreetMap tiles via mapbox
-  // ============================================================
-  const mapboxLayout = {
-    mapbox: {
-      style: 'open-street-map',
-      center: {lat: sel.lat, lon: sel.lon},
-      zoom: 14
-    },
-    margin: {t: 0, b: 0, l: 0, r: 0},
-    height: 580,
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    showlegend: false,
-    annotations: [{
-      x: 0.02, y: 0.97, xref: 'paper', yref: 'paper',
-      xanchor: 'left', yanchor: 'top',
-      text: "<b style='color:#fbbf24'>📍 " + sel.name + "</b>",
-      showarrow: false,
-      font: {size: 14, color: '#0b1220',
-             family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
-      bgcolor: 'rgba(255,255,255,0.92)',
-      bordercolor: 'rgba(251,191,36,0.6)',
-      borderwidth: 2, borderpad: 8,
-      align: 'left'
-    }]
-  };
-  Plotly.newPlot(gd, buildMapboxTraces(), mapboxLayout, config);
-} else {
-  // ============================================================
-  // WORLD VIEW — auto-rotating orthographic globe
-  // ============================================================
-  const globeLayout = {
-    geo: {
-      resolution: 50,  // higher detail (50 instead of default 110)
-      projection: {
-        type: 'orthographic',
-        rotation: {lon: -0.13, lat: 20, roll: 0},
-        scale: 1.7
-      },
-      showland: true, landcolor: 'rgb(75, 95, 130)',
-      showocean: true, oceancolor: 'rgb(8, 14, 28)',
-      showcountries: true, countrycolor: 'rgba(255,255,255,0.35)',
-      showcoastlines: true, coastlinecolor: 'rgba(125,211,252,0.7)',
-      showlakes: true, lakecolor: 'rgb(12, 22, 44)',
-      showrivers: true, rivercolor: 'rgba(56,189,248,0.6)',
-      showsubunits: true, subunitcolor: 'rgba(255,255,255,0.18)',
-      bgcolor: 'rgba(0,0,0,0)'
-    },
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    font: {family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif', color: '#cbd5e1'},
-    margin: {t: 10, b: 10, l: 0, r: 0},
-    height: 580,
-    hoverlabel: {bgcolor: 'rgba(15,23,42,0.96)',
-                 bordercolor: 'rgba(125,211,252,0.4)',
-                 font: {color: '#e2e8f0', size: 12}},
-    showlegend: false
-  };
-
-  Plotly.newPlot(gd, buildTraces(), globeLayout, config).then(() => {
-    // Auto-rotate
+Plotly.newPlot(gd, buildTraces(), globeLayout, config).then(() => {
+  // Auto-rotate ONLY when no location is selected — locked-on otherwise
+  if (!sel) {
     let rotLon = -180;
     let paused = false;
     gd.addEventListener('mouseenter', () => { paused = true; });
@@ -1346,8 +1270,8 @@ if (sel) {
         'geo.projection.rotation.lat': 20
       });
     }, 50);
-  });
-}
+  }
+});
 </script>
 </body>
 </html>
@@ -2028,11 +1952,4 @@ with tab_export:
         language=None,
     )
 
-# ============================================================================
-# Footer
-# ============================================================================
-st.markdown("---")
-st.caption(
-    f"Developed by Ashikujjaman Mohammad · MSc Environmental Engineering · Imperial College London · "
-    f"Model v{MODEL_VERSION} · 2026"
-)
+# Footer removed — credit now lives on the splash welcome page.
