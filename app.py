@@ -1193,45 +1193,72 @@ function buildTraces() {
   return traces;
 }
 
-const layout = {
-  geo: {
-    projection: {
-      type: 'orthographic',
-      rotation: sel ? {lon: sel.lon, lat: sel.lat, roll: 0}
-                    : {lon: -0.13, lat: 20, roll: 0},
-      // Tighter borough-level zoom when a location is picked
-      scale: sel ? 25 : 1.7
-    },
-    showland: true, landcolor: 'rgb(40, 55, 80)',
-    showocean: true, oceancolor: 'rgb(8, 14, 28)',
-    showcountries: true, countrycolor: 'rgba(255,255,255,0.22)',
-    showcoastlines: true, coastlinecolor: 'rgba(125,211,252,0.5)',
-    showlakes: true, lakecolor: 'rgb(12, 22, 44)',
-    showrivers: true, rivercolor: 'rgba(56,189,248,0.5)',
-    bgcolor: 'rgba(0,0,0,0)'
-  },
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor: 'rgba(0,0,0,0)',
-  font: {family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif', color: '#cbd5e1'},
-  margin: {t: 10, b: 10, l: 0, r: 0},
-  height: 580,
-  hoverlabel: {bgcolor: 'rgba(15,23,42,0.96)',
-               bordercolor: 'rgba(125,211,252,0.4)',
-               font: {color: '#e2e8f0', size: 12}},
-  showlegend: false,
-  annotations: sel ? [{
-    x: 0.02, y: 0.97, xref: 'paper', yref: 'paper',
-    xanchor: 'left', yanchor: 'top',
-    text: "<b style='color:#fbbf24'>📍 " + sel.name + "</b>",
-    showarrow: false,
-    font: {size: 13, color: '#e2e8f0',
-           family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
-    bgcolor: 'rgba(15,23,42,0.78)',
-    bordercolor: 'rgba(251,191,36,0.45)',
-    borderwidth: 1, borderpad: 8,
-    align: 'left'
-  }] : []
-};
+// ======================================================
+// MAPBOX TRACES — used when a location is selected so the user
+// sees a real street/borough map (OpenStreetMap tiles).
+// ======================================================
+function buildMapboxTraces() {
+  const traces = [];
+  if (!sel) return traces;
+
+  // Outer aura (large transparent disc)
+  traces.push({type: 'scattermapbox', lon: [sel.lon], lat: [sel.lat],
+    mode: 'markers',
+    marker: {size: 90, color: 'rgba(251,191,36,0.18)'},
+    hoverinfo: 'skip', showlegend: false});
+  // Mid ring
+  traces.push({type: 'scattermapbox', lon: [sel.lon], lat: [sel.lat],
+    mode: 'markers',
+    marker: {size: 60, color: 'rgba(251,191,36,0.32)'},
+    hoverinfo: 'skip', showlegend: false});
+  // Solid pin marker
+  traces.push({type: 'scattermapbox', lon: [sel.lon], lat: [sel.lat],
+    mode: 'markers+text',
+    marker: {size: 26, color: '#fbbf24'},
+    text: ['📍 ' + sel.name],
+    textposition: 'top right',
+    textfont: {size: 14, color: '#fbbf24',
+               family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
+    hoverinfo: 'skip', showlegend: false});
+
+  // Visual signs — flood + drought icons placed in tight rows
+  // At mapbox zoom ~13 these offsets put icons within ~500m of the pin
+  const ROW_OFFSET_LAT = 0.0035;
+  const ICON_STEP_LON  = 0.0030;
+
+  let floodIcons, floodSize;
+  if (sel.flood < 30)       { floodIcons = ['💧'];           floodSize = 30; }
+  else if (sel.flood < 60)  { floodIcons = ['💧', '🌊'];     floodSize = 32; }
+  else if (sel.flood < 85)  { floodIcons = ['💧','🌊','☔']; floodSize = 36; }
+  else                      { floodIcons = ['🌊','☔','🌊']; floodSize = 40; }
+
+  let droughtIcons, droughtSize;
+  if (sel.drought < 30)      { droughtIcons = ['🌱'];             droughtSize = 30; }
+  else if (sel.drought < 60) { droughtIcons = ['☀️','🌵'];        droughtSize = 32; }
+  else if (sel.drought < 85) { droughtIcons = ['🔥','☀️','🌵'];   droughtSize = 36; }
+  else                       { droughtIcons = ['🔥','🥵','🔥'];   droughtSize = 40; }
+
+  // Flood row — above pin
+  for (let i = 0; i < floodIcons.length; i++) {
+    const dLon = sel.lon + (i - (floodIcons.length - 1) / 2) * ICON_STEP_LON;
+    traces.push({type: 'scattermapbox',
+      lon: [dLon], lat: [sel.lat + ROW_OFFSET_LAT],
+      mode: 'text', text: [floodIcons[i]],
+      textfont: {size: floodSize, color: '#1e3a8a'},
+      hoverinfo: 'skip', showlegend: false});
+  }
+  // Drought row — below pin
+  for (let i = 0; i < droughtIcons.length; i++) {
+    const dLon = sel.lon + (i - (droughtIcons.length - 1) / 2) * ICON_STEP_LON;
+    traces.push({type: 'scattermapbox',
+      lon: [dLon], lat: [sel.lat - ROW_OFFSET_LAT],
+      mode: 'text', text: [droughtIcons[i]],
+      textfont: {size: droughtSize, color: '#7c2d12'},
+      hoverinfo: 'skip', showlegend: false});
+  }
+
+  return traces;
+}
 
 const config = {
   displaylogo: false,
@@ -1242,10 +1269,70 @@ const config = {
 };
 
 const gd = document.getElementById('globe');
-Plotly.newPlot(gd, buildTraces(), layout, config).then(() => {
-  // ====== AUTO-ROTATION ======
-  // Only when no location is selected — otherwise we want it locked.
-  if (!sel) {
+
+if (sel) {
+  // ============================================================
+  // STREET-LEVEL VIEW — OpenStreetMap tiles via mapbox
+  // ============================================================
+  const mapboxLayout = {
+    mapbox: {
+      style: 'open-street-map',
+      center: {lat: sel.lat, lon: sel.lon},
+      zoom: 14
+    },
+    margin: {t: 0, b: 0, l: 0, r: 0},
+    height: 580,
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    showlegend: false,
+    annotations: [{
+      x: 0.02, y: 0.97, xref: 'paper', yref: 'paper',
+      xanchor: 'left', yanchor: 'top',
+      text: "<b style='color:#fbbf24'>📍 " + sel.name + "</b>",
+      showarrow: false,
+      font: {size: 14, color: '#0b1220',
+             family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
+      bgcolor: 'rgba(255,255,255,0.92)',
+      bordercolor: 'rgba(251,191,36,0.6)',
+      borderwidth: 2, borderpad: 8,
+      align: 'left'
+    }]
+  };
+  Plotly.newPlot(gd, buildMapboxTraces(), mapboxLayout, config);
+} else {
+  // ============================================================
+  // WORLD VIEW — auto-rotating orthographic globe
+  // ============================================================
+  const globeLayout = {
+    geo: {
+      resolution: 50,  // higher detail (50 instead of default 110)
+      projection: {
+        type: 'orthographic',
+        rotation: {lon: -0.13, lat: 20, roll: 0},
+        scale: 1.7
+      },
+      showland: true, landcolor: 'rgb(75, 95, 130)',
+      showocean: true, oceancolor: 'rgb(8, 14, 28)',
+      showcountries: true, countrycolor: 'rgba(255,255,255,0.35)',
+      showcoastlines: true, coastlinecolor: 'rgba(125,211,252,0.7)',
+      showlakes: true, lakecolor: 'rgb(12, 22, 44)',
+      showrivers: true, rivercolor: 'rgba(56,189,248,0.6)',
+      showsubunits: true, subunitcolor: 'rgba(255,255,255,0.18)',
+      bgcolor: 'rgba(0,0,0,0)'
+    },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: {family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif', color: '#cbd5e1'},
+    margin: {t: 10, b: 10, l: 0, r: 0},
+    height: 580,
+    hoverlabel: {bgcolor: 'rgba(15,23,42,0.96)',
+                 bordercolor: 'rgba(125,211,252,0.4)',
+                 font: {color: '#e2e8f0', size: 12}},
+    showlegend: false
+  };
+
+  Plotly.newPlot(gd, buildTraces(), globeLayout, config).then(() => {
+    // Auto-rotate
     let rotLon = -180;
     let paused = false;
     gd.addEventListener('mouseenter', () => { paused = true; });
@@ -1259,8 +1346,8 @@ Plotly.newPlot(gd, buildTraces(), layout, config).then(() => {
         'geo.projection.rotation.lat': 20
       });
     }, 50);
-  }
-});
+  });
+}
 </script>
 </body>
 </html>
@@ -1280,19 +1367,33 @@ Plotly.newPlot(gd, buildTraces(), layout, config).then(() => {
     sel_idx = st.session_state.get("selected_location_idx")
 
     with g_right:
-        # Selectbox fallback (also works without clicking — accessibility)
+        # Dropdown with explicit "City overview" option so the first
+        # render doesn't auto-select Westminster.
         loc_names = [loc["name"] for loc in LONDON_LOCATIONS]
-        default_idx = sel_idx if sel_idx is not None else 0
+        OVERVIEW_LABEL = "🌐 City overview (rotating globe)"
+        options = [OVERVIEW_LABEL] + loc_names
+        default_pick = (loc_names[sel_idx]
+                        if sel_idx is not None and 0 <= sel_idx < len(loc_names)
+                        else OVERVIEW_LABEL)
         picked = st.selectbox(
             "📍 Or pick a location",
-            loc_names,
-            index=default_idx,
+            options,
+            index=options.index(default_pick),
             key="loc_picker",
         )
-        new_idx = loc_names.index(picked)
+        # Map dropdown choice → sel_idx (None for overview, int for a location)
+        if picked == OVERVIEW_LABEL:
+            new_idx = None
+        else:
+            new_idx = loc_names.index(picked)
+
+        # Force immediate rerun so the globe/mapbox view updates without lag
         if new_idx != sel_idx:
-            st.session_state["selected_location_idx"] = new_idx
-            sel_idx = new_idx
+            if new_idx is None:
+                st.session_state.pop("selected_location_idx", None)
+            else:
+                st.session_state["selected_location_idx"] = new_idx
+            st.rerun()
 
         if sel_idx is None:
             st.info("👆 Click a marker on the globe (or pick from the dropdown) to splash its 80-year trajectory into the charts below.")
