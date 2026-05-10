@@ -461,13 +461,26 @@ if not st.session_state.get("splash_shown", False):
     body:has(.splash) section[data-testid="stSidebar"] { display: none !important; }
     body:has(.splash) header[data-testid="stHeader"]   { display: none !important; }
     body:has(.splash) div[data-testid="stToolbar"]     { display: none !important; }
-    body:has(.splash) .block-container { padding-top: 0 !important; max-width: 100% !important; }
+    /* Make the whole welcome page fill the viewport — no empty bottom space.
+       Block container becomes a 100vh flex column centered vertically. */
+    body:has(.splash) .block-container {
+        padding: 0 !important;
+        max-width: 100% !important;
+        min-height: 100vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+    }
+    body:has(.splash) [data-testid="stMain"],
+    body:has(.splash) [data-testid="stAppViewContainer"] {
+        min-height: 100vh !important;
+    }
 
     .splash {
         position: relative;
-        /* No min-height: card sizes to its content, leaving room for
-           button + "click to begin" + credit below in the viewport. */
-        padding: 30px 24px 28px;
+        /* Card dominates the viewport so the welcome page feels full-screen */
+        min-height: 70vh;
+        padding: 40px 24px 32px;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         text-align: center;
@@ -497,10 +510,10 @@ if not st.session_state.get("splash_shown", False):
     }
 
     .splash-icons {
-        font-size: 60px;
-        letter-spacing: 22px;
-        margin-bottom: 16px;
-        filter: drop-shadow(0 5px 14px rgba(0,0,0,0.5));
+        font-size: 72px;
+        letter-spacing: 28px;
+        margin-bottom: 24px;
+        filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5));
         animation: floatIcons 3.6s ease-in-out infinite;
     }
     .splash-icons span:nth-child(1) { animation: bounceIcon 3s ease-in-out infinite; display: inline-block; }
@@ -517,21 +530,21 @@ if not st.session_state.get("splash_shown", False):
 
     .splash-welcome {
         display: inline-block;
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 700;
-        letter-spacing: 0.45em;
+        letter-spacing: 0.5em;
         color: #fbbf24;
         background: rgba(251,191,36,0.08);
         border: 1px solid rgba(251,191,36,0.35);
         border-radius: 999px;
-        padding: 5px 20px 5px 26px;
-        margin-bottom: 18px;
+        padding: 6px 22px 6px 28px;
+        margin-bottom: 24px;
         animation: badgeIn 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.2s both, badgeGlow 3s ease-in-out infinite 1s;
         text-transform: uppercase;
     }
 
     .splash-lab {
-        font-size: clamp(32px, 5.5vw, 56px);
+        font-size: clamp(36px, 6vw, 64px);
         font-weight: 900;
         letter-spacing: -0.02em;
         line-height: 1.0;
@@ -542,31 +555,31 @@ if not st.session_state.get("splash_shown", False):
         color: transparent;
         margin: 0;
         animation: fadeInUp 0.9s cubic-bezier(0.2,0.8,0.2,1) 0.5s both, shimmer 6s linear infinite 0.5s;
-        text-shadow: 0 0 36px rgba(125,211,252,0.3);
+        text-shadow: 0 0 40px rgba(125,211,252,0.3);
     }
 
     .splash-divider {
-        width: 110px; height: 2px;
-        margin: 18px 0 12px;
+        width: 120px; height: 2px;
+        margin: 26px 0 20px;
         background: linear-gradient(90deg, transparent, #fbbf24, transparent);
         animation: fadeIn 0.8s ease 0.9s both;
     }
 
     .splash-question {
-        font-size: clamp(18px, 2.2vw, 26px);
+        font-size: clamp(20px, 2.4vw, 30px);
         font-style: italic;
         color: #e2e8f0;
         font-weight: 400;
-        margin: 0 0 12px;
+        margin: 0 0 18px;
         animation: fadeInUp 0.9s cubic-bezier(0.2,0.8,0.2,1) 1.05s both;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+        text-shadow: 0 2px 12px rgba(0,0,0,0.4);
     }
 
     .splash-tagline {
-        font-size: 14px;
+        font-size: 15px;
         color: #94a3b8;
         letter-spacing: 0.04em;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
         animation: fadeInUp 0.8s ease 1.3s both;
     }
     .splash-tagline .ts { color: #7dd3fc; }
