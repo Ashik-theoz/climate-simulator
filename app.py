@@ -1132,56 +1132,59 @@ function buildTraces() {
 
   // Visual signs when a location is selected
   if (sel) {
-    // Outer aura
+    // Outer aura — sized for the new tighter zoom
     traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat], mode: 'markers',
-      marker: {size: 90, color: 'rgba(251,191,36,0.16)', line: {width: 0}},
+      marker: {size: 60, color: 'rgba(251,191,36,0.18)', line: {width: 0}},
       hoverinfo: 'skip', showlegend: false});
     // Mid ring
     traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat], mode: 'markers',
-      marker: {size: 58, color: 'rgba(251,191,36,0.30)', line: {width: 0}},
+      marker: {size: 38, color: 'rgba(251,191,36,0.32)', line: {width: 0}},
       hoverinfo: 'skip', showlegend: false});
     // Solid ring + name
     traces.push({type: 'scattergeo', lon: [sel.lon], lat: [sel.lat],
       mode: 'markers+text',
-      marker: {size: 32, color: 'rgba(0,0,0,0)', line: {width: 4, color: '#fbbf24'}},
+      marker: {size: 22, color: 'rgba(0,0,0,0)', line: {width: 3, color: '#fbbf24'}},
       text: ['📍 ' + sel.name],
       textposition: 'top center',
-      textfont: {size: 14, color: '#fbbf24',
+      textfont: {size: 13, color: '#fbbf24',
                  family: '-apple-system, BlinkMacSystemFont, Inter, sans-serif'},
       hoverinfo: 'skip', showlegend: false});
 
-    // Flood icons (arc above)
-    let floodIcons, floodSize;
-    if (sel.flood < 25)        { floodIcons = ['💧'];               floodSize = 22; }
-    else if (sel.flood < 50)   { floodIcons = ['💧','💧'];          floodSize = 26; }
-    else if (sel.flood < 75)   { floodIcons = ['💧','🌊','💧'];     floodSize = 30; }
-    else                       { floodIcons = ['🌊','💧','☔','🌊']; floodSize = 34; }
+    // ===== ICON ROW — tight horizontal row right above/below the pin =====
+    // At the new zoom (scale ~25), 0.005° offset puts icons within ~550m of
+    // the pin, so they cluster visually next to it instead of scattering.
+    const ROW_OFFSET_LAT = 0.0055;  // distance above/below the pin
+    const ICON_STEP_LON  = 0.0040;  // horizontal spacing between icons
 
-    for (let i = 0; i < floodIcons.length; i++) {
-      const ang = (i + 1) / (floodIcons.length + 1) * 80 - 40;  // -40 to +40°
-      const r_lat = 0.030, r_lon = 0.045;
-      const dLat = sel.lat + r_lat * Math.cos(ang * Math.PI / 180);
-      const dLon = sel.lon + r_lon * Math.sin(ang * Math.PI / 180);
-      traces.push({type: 'scattergeo', lon: [dLon], lat: [dLat], mode: 'text',
-        text: [floodIcons[i]],
+    // Icon set scales BOTH count and size with severity, capped at 3 icons.
+    let floodIcons, floodSize;
+    if (sel.flood < 30)       { floodIcons = ['💧'];           floodSize = 22; }
+    else if (sel.flood < 60)  { floodIcons = ['💧', '🌊'];     floodSize = 24; }
+    else if (sel.flood < 85)  { floodIcons = ['💧','🌊','☔']; floodSize = 26; }
+    else                      { floodIcons = ['🌊','☔','🌊']; floodSize = 30; }
+
+    let droughtIcons, droughtSize;
+    if (sel.drought < 30)      { droughtIcons = ['🌱'];             droughtSize = 22; }
+    else if (sel.drought < 60) { droughtIcons = ['☀️','🌵'];        droughtSize = 24; }
+    else if (sel.drought < 85) { droughtIcons = ['🔥','☀️','🌵'];   droughtSize = 26; }
+    else                       { droughtIcons = ['🔥','🥵','🔥'];   droughtSize = 30; }
+
+    // Place flood icons in a row ABOVE the pin
+    const flood_n = floodIcons.length;
+    for (let i = 0; i < flood_n; i++) {
+      const dLon = sel.lon + (i - (flood_n - 1) / 2) * ICON_STEP_LON;
+      traces.push({type: 'scattergeo', lon: [dLon], lat: [sel.lat + ROW_OFFSET_LAT],
+        mode: 'text', text: [floodIcons[i]],
         textfont: {size: floodSize, color: '#56B4E9'},
         hoverinfo: 'skip', showlegend: false});
     }
 
-    // Drought icons (arc below)
-    let droughtIcons, droughtSize;
-    if (sel.drought < 25)      { droughtIcons = ['🌱'];                  droughtSize = 22; }
-    else if (sel.drought < 50) { droughtIcons = ['☀️','🌵'];             droughtSize = 26; }
-    else if (sel.drought < 75) { droughtIcons = ['🔥','☀️','🌵'];        droughtSize = 30; }
-    else                       { droughtIcons = ['🔥','🥵','🔥','🌵'];   droughtSize = 34; }
-
-    for (let i = 0; i < droughtIcons.length; i++) {
-      const ang = (i + 1) / (droughtIcons.length + 1) * 80 - 40;
-      const r_lat = 0.030, r_lon = 0.045;
-      const dLat = sel.lat - r_lat * Math.cos(ang * Math.PI / 180);
-      const dLon = sel.lon + r_lon * Math.sin(ang * Math.PI / 180);
-      traces.push({type: 'scattergeo', lon: [dLon], lat: [dLat], mode: 'text',
-        text: [droughtIcons[i]],
+    // Place drought icons in a row BELOW the pin
+    const drought_n = droughtIcons.length;
+    for (let i = 0; i < drought_n; i++) {
+      const dLon = sel.lon + (i - (drought_n - 1) / 2) * ICON_STEP_LON;
+      traces.push({type: 'scattergeo', lon: [dLon], lat: [sel.lat - ROW_OFFSET_LAT],
+        mode: 'text', text: [droughtIcons[i]],
         textfont: {size: droughtSize, color: '#E69F00'},
         hoverinfo: 'skip', showlegend: false});
     }
@@ -1196,7 +1199,8 @@ const layout = {
       type: 'orthographic',
       rotation: sel ? {lon: sel.lon, lat: sel.lat, roll: 0}
                     : {lon: -0.13, lat: 20, roll: 0},
-      scale: sel ? 9.0 : 1.7
+      // Tighter borough-level zoom when a location is picked
+      scale: sel ? 25 : 1.7
     },
     showland: true, landcolor: 'rgb(40, 55, 80)',
     showocean: true, oceancolor: 'rgb(8, 14, 28)',
