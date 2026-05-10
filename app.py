@@ -1376,7 +1376,7 @@ if (sel) {
       projection: {
         type: 'orthographic',
         rotation: {lon: -0.13, lat: 20, roll: 0},
-        scale: 1.25  // slightly zoomed out so the whole globe is comfortably visible
+        scale: 0.95  // zoomed out so the entire globe is comfortably in frame
       },
       showland: true,        landcolor:    'rgb(75, 95, 130)',
       showocean: true,       oceancolor:   'rgb(8, 14, 28)',
