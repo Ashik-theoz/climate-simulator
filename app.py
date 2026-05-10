@@ -37,10 +37,9 @@ st.set_page_config(
 st.markdown("""
 <style>
 /* === HIDE STREAMLIT CHROME (Share / Star / GitHub / 3-dot menu / deploy bar) ===
-   Critical: do NOT hide the header itself or any "header" buttons globally —
-   the sidebar collapse/expand toggle lives there. Hide only the right-side
-   action chrome. */
-[data-testid="stToolbar"] { display: none !important; }
+   Critical: do NOT hide the header or stToolbar containers — the sidebar
+   collapse/expand toggle is a child of those. Hide only the right-side
+   action chrome (Share, deploy, status, etc.). */
 [data-testid="stToolbarActions"] { display: none !important; }
 [data-testid="stDecoration"] { display: none !important; }
 [data-testid="stStatusWidget"] { display: none !important; }
@@ -671,30 +670,89 @@ if not st.session_state.get("splash_shown", False):
 # ============================================================================
 # Hero removed — the splash already covers the title. We go straight to metrics.
 
-# Force sidebar open on every page load. Streamlit's `initial_sidebar_state`
-# only applies once per session; if the browser remembers a collapsed state
-# (or auto-collapsed on a narrow viewport at any point) it stays collapsed.
-# This injected JS finds the "open sidebar" toggle and clicks it if visible.
+# Sidebar safety net:
+#   1. Auto-expand the sidebar on every page load (in case the browser
+#      remembers a collapsed state, especially on Chrome).
+#   2. Inject a fixed-position "☰ Controls" button into the parent document
+#      that's only visible when the sidebar is collapsed — guaranteed way
+#      to expand it back even if Streamlit's own toggle is hidden.
 components.html("""
 <script>
 (function() {
-  const tryExpand = (attempt = 0) => {
-    if (attempt > 30) return;  // give up after ~9s
+  const findOpenBtn = (doc) => doc.querySelector(
+    '[data-testid="stSidebarCollapsedControl"] button, ' +
+    '[data-testid="collapsedControl"] button, ' +
+    'button[aria-label="Open sidebar"]'
+  );
+  const isCollapsed = (sidebar) => {
+    if (!sidebar) return true;
+    return sidebar.getBoundingClientRect().width < 50;
+  };
+
+  // Inject our own always-on expand button that floats top-left
+  function ensureCustomBtn(doc) {
+    if (doc.getElementById('cw-expand-btn')) return doc.getElementById('cw-expand-btn');
+    const btn = doc.createElement('button');
+    btn.id = 'cw-expand-btn';
+    btn.innerHTML = '☰ &nbsp;Controls';
+    btn.style.cssText = [
+      'position: fixed',
+      'top: 14px',
+      'left: 14px',
+      'z-index: 999999',
+      'background: linear-gradient(135deg, rgba(125,211,252,0.95), rgba(251,191,36,0.95))',
+      'color: #0b1220',
+      'border: none',
+      'border-radius: 10px',
+      'padding: 8px 14px',
+      'font-size: 13px',
+      'font-weight: 800',
+      'letter-spacing: 0.04em',
+      'cursor: pointer',
+      'box-shadow: 0 6px 18px rgba(0,0,0,0.35)',
+      'font-family: -apple-system, BlinkMacSystemFont, Inter, sans-serif',
+      'display: none'
+    ].join(';');
+    btn.onclick = () => {
+      const openBtn = findOpenBtn(doc);
+      if (openBtn) { openBtn.click(); return; }
+      // Hard fallback: directly un-collapse via inline style
+      const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+      if (sidebar) {
+        sidebar.style.transform = 'translateX(0)';
+        sidebar.style.width = '21rem';
+        sidebar.style.minWidth = '21rem';
+        sidebar.style.visibility = 'visible';
+        sidebar.style.display = 'flex';
+      }
+    };
+    doc.body.appendChild(btn);
+    return btn;
+  }
+
+  function poll() {
     const doc = window.parent.document;
     const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
-    // If sidebar is collapsed, the "open" toggle is rendered separately
-    const openBtn = doc.querySelector(
-      '[data-testid="stSidebarCollapsedControl"] button, ' +
-      '[data-testid="collapsedControl"] button, ' +
-      'button[kind="header"][aria-label*="ide"], ' +
-      'button[aria-label="Open sidebar"]'
-    );
-    // Sidebar present and visibly open? Done.
-    if (sidebar && sidebar.getBoundingClientRect().width > 50) return;
+    const myBtn = ensureCustomBtn(doc);
+    const collapsed = isCollapsed(sidebar);
+    myBtn.style.display = collapsed ? 'block' : 'none';
+  }
+
+  // First-load auto-expand attempt
+  const tryAutoExpand = (attempt = 0) => {
+    if (attempt > 20) return;
+    const doc = window.parent.document;
+    const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+    if (sidebar && !isCollapsed(sidebar)) return;
+    const openBtn = findOpenBtn(doc);
     if (openBtn) { openBtn.click(); return; }
-    setTimeout(() => tryExpand(attempt + 1), 300);
+    setTimeout(() => tryAutoExpand(attempt + 1), 300);
   };
-  tryExpand();
+  tryAutoExpand();
+
+  // Keep polling so the custom button shows up if user collapses later
+  setInterval(poll, 500);
+  setTimeout(poll, 200);
 })();
 </script>
 """, height=0)
