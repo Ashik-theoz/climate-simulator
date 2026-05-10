@@ -59,39 +59,23 @@ header[data-testid="stHeader"] {
 }
 header[data-testid="stHeader"] > * { background: transparent !important; }
 
-/* === NUCLEAR SIDEBAR FORCE-VISIBLE ============================
-   Earlier CSS tried to be polite. The user's deployment kept hiding
-   the sidebar. These rules use very high specificity + !important to
-   beat any other rule (Streamlit auto-collapse, leftover splash CSS,
-   media-query collapse on narrow viewports, etc.). */
-html body section[data-testid="stSidebar"],
-html body [data-testid="stSidebar"],
-html body section.css-1d391kg,
-html body section[role="complementary"] {
+/* === SIDEBAR PROTECTION (collapsible-friendly) ================
+   Only protect against accidental `display: none` (e.g. leftover
+   splash CSS). DO NOT lock width/transform/position — Streamlit
+   uses those to animate the user-initiated collapse, so overriding
+   them would break the collapse arrow. */
+html body section[data-testid="stSidebar"]:not([aria-expanded="false"]) {
   display: flex !important;
   visibility: visible !important;
   opacity: 1 !important;
-  width: 21rem !important;
-  min-width: 21rem !important;
-  max-width: 21rem !important;
-  transform: translateX(0) !important;
-  margin-left: 0 !important;
-  position: relative !important;
-  left: 0 !important;
-  flex-shrink: 0 !important;
 }
-html body section[data-testid="stSidebar"] > div,
-html body section[data-testid="stSidebar"] > * {
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-/* Even if Streamlit collapses on narrow screens, keep the toggle visible */
+/* Always keep the collapse/expand toggle reachable */
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stSidebarCollapseButton"],
 [data-testid="collapsedControl"],
 button[data-testid="baseButton-headerNoPadding"],
-[aria-label="Open sidebar"] {
+[aria-label="Open sidebar"],
+[aria-label="Close sidebar"] {
   display: flex !important;
   visibility: visible !important;
   z-index: 99999 !important;
