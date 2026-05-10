@@ -59,18 +59,28 @@ header[data-testid="stHeader"] {
 }
 header[data-testid="stHeader"] > * { background: transparent !important; }
 
-/* === SIDEBAR PROTECTION (collapsible-friendly) ================
-   Force display:flex / visibility:visible so the sidebar can't be
-   killed by a stray `display:none` (e.g. leftover splash CSS).
-   DO NOT override `width`, `transform`, or `position` — Streamlit
-   uses those to animate the user's collapse click, so overriding
-   them would break the collapse/expand toggle. */
-html body section[data-testid="stSidebar"] {
+/* === SIDEBAR — visible by default, but collapsible on click ====
+   Apply width + visibility ONLY when sidebar is expanded (or has
+   no aria-expanded attribute set yet, i.e. fresh page load).
+   When the user clicks the collapse arrow, Streamlit sets
+   aria-expanded="false" — we don't override that case, so the
+   collapse animation runs naturally. */
+html body section[data-testid="stSidebar"][aria-expanded="true"],
+html body section[data-testid="stSidebar"]:not([aria-expanded]) {
   display: flex !important;
   visibility: visible !important;
   opacity: 1 !important;
+  width: 21rem !important;
+  min-width: 21rem !important;
+  transform: translateX(0) !important;
 }
-/* Always keep the collapse/expand toggle reachable */
+/* Children must also be visible when expanded */
+html body section[data-testid="stSidebar"][aria-expanded="true"] > div,
+html body section[data-testid="stSidebar"]:not([aria-expanded]) > div {
+  display: block !important;
+  visibility: visible !important;
+}
+/* Always keep the collapse/expand toggle reachable in BOTH states */
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stSidebarCollapseButton"],
 [data-testid="collapsedControl"],
@@ -453,8 +463,9 @@ if not st.session_state.get("splash_shown", False):
 
     .splash {
         position: relative;
-        min-height: 90vh;
-        padding: 40px 20px 30px;
+        /* Compact so the button + "click to begin" + credit all fit in one viewport */
+        min-height: 56vh;
+        padding: 22px 18px 18px;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         text-align: center;
@@ -462,7 +473,7 @@ if not st.session_state.get("splash_shown", False):
             radial-gradient(ellipse 1200px 600px at 50% 0%, rgba(46,134,222,0.30), transparent 60%),
             radial-gradient(ellipse 800px 500px at 90% 100%, rgba(238,90,36,0.28), transparent 60%),
             radial-gradient(ellipse 800px 500px at 10% 100%, rgba(125,211,252,0.18), transparent 60%);
-        border-radius: 20px;
+        border-radius: 18px;
         overflow: hidden;
     }
     /* Floating ambient particles */
@@ -484,10 +495,10 @@ if not st.session_state.get("splash_shown", False):
     }
 
     .splash-icons {
-        font-size: 72px;
-        letter-spacing: 28px;
-        margin-bottom: 28px;
-        filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5));
+        font-size: 48px;
+        letter-spacing: 16px;
+        margin-bottom: 12px;
+        filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
         animation: floatIcons 3.6s ease-in-out infinite;
     }
     .splash-icons span:nth-child(1) { animation: bounceIcon 3s ease-in-out infinite; display: inline-block; }
@@ -504,21 +515,21 @@ if not st.session_state.get("splash_shown", False):
 
     .splash-welcome {
         display: inline-block;
-        font-size: 13px;
+        font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.5em;
+        letter-spacing: 0.4em;
         color: #fbbf24;
         background: rgba(251,191,36,0.08);
         border: 1px solid rgba(251,191,36,0.35);
         border-radius: 999px;
-        padding: 6px 22px 6px 28px;
-        margin-bottom: 24px;
+        padding: 4px 16px 4px 22px;
+        margin-bottom: 12px;
         animation: badgeIn 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.2s both, badgeGlow 3s ease-in-out infinite 1s;
         text-transform: uppercase;
     }
 
     .splash-lab {
-        font-size: clamp(36px, 6vw, 64px);
+        font-size: clamp(26px, 4.8vw, 48px);
         font-weight: 900;
         letter-spacing: -0.02em;
         line-height: 1.0;
@@ -529,31 +540,31 @@ if not st.session_state.get("splash_shown", False):
         color: transparent;
         margin: 0;
         animation: fadeInUp 0.9s cubic-bezier(0.2,0.8,0.2,1) 0.5s both, shimmer 6s linear infinite 0.5s;
-        text-shadow: 0 0 40px rgba(125,211,252,0.3);
+        text-shadow: 0 0 30px rgba(125,211,252,0.3);
     }
 
     .splash-divider {
-        width: 120px; height: 2px;
-        margin: 26px 0 20px;
+        width: 100px; height: 2px;
+        margin: 12px 0 8px;
         background: linear-gradient(90deg, transparent, #fbbf24, transparent);
         animation: fadeIn 0.8s ease 0.9s both;
     }
 
     .splash-question {
-        font-size: clamp(20px, 2.4vw, 30px);
+        font-size: clamp(15px, 1.9vw, 22px);
         font-style: italic;
         color: #e2e8f0;
         font-weight: 400;
-        margin: 0 0 18px;
+        margin: 0 0 8px;
         animation: fadeInUp 0.9s cubic-bezier(0.2,0.8,0.2,1) 1.05s both;
-        text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+        text-shadow: 0 2px 10px rgba(0,0,0,0.4);
     }
 
     .splash-tagline {
-        font-size: 15px;
+        font-size: 13px;
         color: #94a3b8;
         letter-spacing: 0.04em;
-        margin-bottom: 40px;
+        margin-bottom: 12px;
         animation: fadeInUp 0.8s ease 1.3s both;
     }
     .splash-tagline .ts { color: #7dd3fc; }
@@ -562,8 +573,8 @@ if not st.session_state.get("splash_shown", False):
     .splash-tagline .sep { color: rgba(255,255,255,0.25); margin: 0 10px; }
 
     .splash-prompt {
-        font-size: 12px; color: #64748b; letter-spacing: 0.2em; text-transform: uppercase;
-        margin-top: 12px;
+        font-size: 10px; color: #64748b; letter-spacing: 0.18em; text-transform: uppercase;
+        margin-top: 8px;
         animation: fadeIn 0.8s ease 1.6s both, blinkSoft 2s ease-in-out infinite 2s;
     }
     @keyframes blinkSoft { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
@@ -573,15 +584,16 @@ if not st.session_state.get("splash_shown", False):
         background: linear-gradient(135deg, #7dd3fc 0%, #fbbf24 50%, #f87171 100%) !important;
         background-size: 200% 100% !important;
         color: #0b1220 !important;
-        font-size: 17px !important;
+        font-size: 15px !important;
         font-weight: 800 !important;
         letter-spacing: 0.1em !important;
-        padding: 16px 36px !important;
+        padding: 11px 28px !important;
         border: none !important;
-        border-radius: 14px !important;
-        box-shadow: 0 12px 40px rgba(125,211,252,0.4), 0 0 0 1px rgba(255,255,255,0.1) inset !important;
+        border-radius: 12px !important;
+        box-shadow: 0 10px 32px rgba(125,211,252,0.4), 0 0 0 1px rgba(255,255,255,0.1) inset !important;
         animation: shimmer 5s linear infinite, btnPulse 2.4s ease-in-out infinite, fadeInUp 0.9s ease 1.5s both !important;
         transition: transform 0.18s ease !important;
+        margin-top: 10px !important;
     }
     .splash + div .stButton button:hover {
         transform: translateY(-3px) scale(1.04) !important;
@@ -593,12 +605,13 @@ if not st.session_state.get("splash_shown", False):
     }
 
     .splash-credit {
-        margin-top: 30px;
-        font-size: 11px;
+        margin-top: 12px;
+        font-size: 10px;
         color: #475569;
-        letter-spacing: 0.15em;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
         animation: fadeIn 1s ease 2s both;
+        line-height: 1.4;
     }
     </style>
 
@@ -1467,7 +1480,10 @@ if (sel) {
                 </div>
                 """, unsafe_allow_html=True)
                 if st.button("🔄 Back to city view", use_container_width=True, key="reset_loc"):
+                    # Clear BOTH the index AND the dropdown's session state —
+                    # otherwise the dropdown re-applies its previous value on rerun.
                     st.session_state.pop("selected_location_idx", None)
+                    st.session_state.pop("loc_picker", None)
                     st.rerun()
 
     st.caption(
